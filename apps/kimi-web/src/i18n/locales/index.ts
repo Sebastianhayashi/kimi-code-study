@@ -51,6 +51,8 @@ import zh_mobile from './zh/mobile';
 import zh_theme from './zh/theme';
 import en_onboarding from './en/onboarding';
 import zh_onboarding from './zh/onboarding';
+import en_study from './en/study';
+import zh_study from './zh/study';
 import en_settings from './en/settings';
 import zh_settings from './zh/settings';
 import en_header from './en/header';
@@ -89,6 +91,7 @@ export const messages = {
     settings: en_settings,
     header: en_header,
     sideChat: en_sideChat,
+    study: en_study,
   },
   zh: {
     common: zh_common,
@@ -120,6 +123,7 @@ export const messages = {
     settings: zh_settings,
     header: zh_header,
     sideChat: zh_sideChat,
+    study: zh_study,
   },
 } as const;
 

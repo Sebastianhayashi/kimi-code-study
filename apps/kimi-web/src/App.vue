@@ -25,6 +25,7 @@ import MobileSettingsSheet from './components/mobile/MobileSettingsSheet.vue';
 import Onboarding from './components/settings/Onboarding.vue';
 import GlobalLoading from './components/GlobalLoading.vue';
 import DebugPanel from './debug/DebugPanel.vue';
+import StudyHomeView from './views/StudyHomeView.vue';
 import { isTraceEnabled } from './debug/trace';
 import { useKimiWebClient } from './composables/useKimiWebClient';
 import { useAuthGate } from './composables/useAuthGate';
@@ -280,6 +281,7 @@ const showLogin = ref(false);
 const showAddWorkspace = ref(false);
 const showStatusPanel = ref(false);
 const showSettings = ref(false);
+const showStudy = ref(false);
 
 type SubmitPayload = {
   text: string;
@@ -681,6 +683,7 @@ function openPr(url: string): void {
         @load-more-sessions="(id) => void client.loadMoreSessions(id)"
         @load-all-sessions="void client.loadAllSessions()"
         @open-settings="showSettings = true"
+        @open-study="showStudy = true"
         @collapse="toggleSidebarCollapse"
       />
       <ResizeHandle
@@ -1060,6 +1063,12 @@ function openPr(url: string): void {
       :on-cancel-o-auth-login="handleCancelOAuthLogin"
       @success="handleLoginSuccess"
       @close="showLogin = false"
+    />
+
+    <!-- Kimi Study home overlay -->
+    <StudyHomeView
+      v-if="showStudy"
+      @close="showStudy = false"
     />
   </div>
 </template>
