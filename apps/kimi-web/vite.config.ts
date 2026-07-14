@@ -149,6 +149,7 @@ export default defineConfig({
   server: {
     port: webPort,
     strictPort: false,
+    allowedHosts: ['.tail892d6b.ts.net', 'microseyuyu.tail892d6b.ts.net'],
     // Same-origin dev: the browser calls Vite, Vite forwards to the server.
     // No CORS anywhere. The real server serves REST + WS all under /api/v1.
     proxy: {

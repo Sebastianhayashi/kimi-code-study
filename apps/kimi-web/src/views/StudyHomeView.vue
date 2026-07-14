@@ -16,10 +16,42 @@ import type { StudyMission, StudyResource } from '../types/study';
 const emit = defineEmits<{ close: [] }>();
 
 const { t } = useI18n();
-const { context, progress, currentMission, resourcesForMission } = useStudyData();
+const {
+  context,
+  progress,
+  currentMission,
+  resourcesForMission,
+  startMission,
+  completeStep,
+  toggleResourceConsumed,
+} = useStudyData();
 
 function close(): void {
   emit('close');
+}
+
+function onContinueMission(): void {
+  const mission = currentMission.value;
+  if (!mission) return;
+  if (mission.completed) return;
+  if (!mission.started) {
+    startMission(mission.id);
+  } else {
+    completeStep(mission.id);
+  }
+}
+
+function onMissionClick(mission: StudyMission): void {
+  if (mission.completed) return;
+  if (!mission.started) {
+    startMission(mission.id);
+  } else {
+    completeStep(mission.id);
+  }
+}
+
+function onResourceClick(resource: StudyResource): void {
+  toggleResourceConsumed(resource.id);
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -130,7 +162,7 @@ const missionResources = computed(() => {
               </div>
             </div>
             <template #foot>
-              <Button variant="primary" size="md">
+              <Button variant="primary" size="md" @click="onContinueMission">
                 <Icon name="play" size="sm" />
                 <span>
                   {{ currentMission.started ? t('study.continueLearning') : t('study.startMission') }}
@@ -146,6 +178,10 @@ const missionResources = computed(() => {
                 v-for="mission in context.missions"
                 :key="mission.id"
                 class="study-mission-item"
+                tabindex="0"
+                role="button"
+                @click="onMissionClick(mission)"
+                @keydown.enter="onMissionClick(mission)"
               >
                 <div class="study-mission-item-content">
                   <div class="study-mission-item-main">
@@ -231,6 +267,10 @@ const missionResources = computed(() => {
                 :key="resource.id"
                 class="study-resource-item"
                 :class="{ 'is-consumed': resource.consumed }"
+                tabindex="0"
+                role="button"
+                @click="onResourceClick(resource)"
+                @keydown.enter="onResourceClick(resource)"
               >
                 <Icon :name="resourceIcon(resource.type)" size="sm" />
                 <div class="study-resource-info">
@@ -423,6 +463,16 @@ const missionResources = computed(() => {
   gap: var(--space-3);
 }
 
+.study-mission-item {
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.study-mission-item:hover {
+  border-color: var(--color-accent-bd);
+}
+
 .study-mission-item-content {
   display: flex;
   gap: var(--space-4);
@@ -558,6 +608,15 @@ const missionResources = computed(() => {
   align-items: flex-start;
   gap: var(--space-3);
   color: var(--color-text);
+  cursor: pointer;
+  padding: var(--space-2);
+  margin: calc(-1 * var(--space-2));
+  border-radius: var(--radius-md);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.study-resource-item:hover {
+  background-color: var(--color-surface-sunken);
 }
 
 .study-resource-item.is-consumed {

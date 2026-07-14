@@ -130,11 +130,40 @@ export function useStudyData() {
     return context.value.records.filter((r) => r.missionId === missionId && !r.superseded);
   };
 
+  const startMission = (missionId: string): void => {
+    const mission = context.value.missions.find((m) => m.id === missionId);
+    if (mission && !mission.started) {
+      mission.started = true;
+    }
+  };
+
+  const completeStep = (missionId: string): void => {
+    const mission = context.value.missions.find((m) => m.id === missionId);
+    if (!mission) return;
+    if (mission.completedSteps < mission.totalSteps) {
+      mission.completedSteps += 1;
+      mission.started = true;
+    }
+    if (mission.completedSteps >= mission.totalSteps) {
+      mission.completed = true;
+    }
+  };
+
+  const toggleResourceConsumed = (resourceId: string): void => {
+    const resource = context.value.resources.find((r) => r.id === resourceId);
+    if (resource) {
+      resource.consumed = !resource.consumed;
+    }
+  };
+
   return {
     context,
     progress,
     currentMission,
     resourcesForMission,
     recordsForMission,
+    startMission,
+    completeStep,
+    toggleResourceConsumed,
   };
 }
