@@ -72,3 +72,60 @@ export interface StudyContext {
   resources: StudyResource[];
   records: LearningRecord[];
 }
+
+// ---------------------------------------------------------------------------
+// Frontend demo study model (multiple studies, lessons, quickrefs)
+// ---------------------------------------------------------------------------
+
+/** Lifecycle status of a study, derived from its learning records. */
+export type StudyStatus = 'not-started' | 'in-progress' | 'completed';
+
+/** The teach-mission shaped fields that a study exposes to the learner. */
+export interface StudyMissionFields {
+  why: string;
+  successLooksLike: string[];
+  constraints: string[];
+  outOfScope: string[];
+}
+
+/** A compact reference card paired with one lesson. */
+export interface StudyQuickref {
+  id: string;
+  lessonId: string;
+  title: string;
+  path: string;
+  html: string;
+  state?: 'ok' | 'truncated' | 'error';
+  error?: string;
+}
+
+/** A single lesson inside a study. */
+export interface StudyLesson {
+  id: string;
+  studyId: string;
+  order: number;
+  title: string;
+  summary?: string;
+  duration?: string;
+  path: string;
+  html: string;
+  state: 'ok' | 'truncated' | 'error';
+  error?: string;
+  quickref: StudyQuickref;
+  records: LearningRecord[];
+}
+
+/** A study (one MISSION.md + lessons + resources + records). */
+export interface Study {
+  id: string;
+  title: string;
+  emoji?: string;
+  mission: StudyMissionFields;
+  status: StudyStatus;
+  resources: StudyResource[];
+  lessons: StudyLesson[];
+  records: LearningRecord[];
+  currentLessonId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
