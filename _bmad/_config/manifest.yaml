@@ -1,0 +1,21 @@
+installation:
+  version: 6.10.0
+  installDate: 2026-07-14T14:41:34.425Z
+  lastUpdated: 2026-07-14T14:41:34.425Z
+modules:
+  - name: core
+    version: 6.10.0
+    installDate: 2026-07-14T14:41:34.342Z
+    lastUpdated: 2026-07-14T14:41:34.424Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+  - name: bmm
+    version: 6.10.0
+    installDate: 2026-07-14T14:41:34.380Z
+    lastUpdated: 2026-07-14T14:41:34.425Z
+    source: built-in
+    npmPackage: null
+    repoUrl: null
+ides:
+  - kimi-code
