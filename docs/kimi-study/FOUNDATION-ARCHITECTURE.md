@@ -302,3 +302,30 @@ Proposed commit boundaries—ask before each commit:
 7. `docs(study): define UX, architecture, and implementation handoff`
 
 Never collapse these into one commit.
+
+---
+
+# 0.5→1 progress addendum (2026-07-18)
+
+Status: product UI wired to the facade; full model E2E still blocked by provider login.
+
+Completed against the recommended order:
+
+1. **Facade integration.** `StudyApp.vue` is now the product shell driven by `useStudyProduct`; the pre-product demo survives as `StudyDemoApp.vue` behind the dev-only `?study-demo=1` fixture. `main.ts` mounts Study when `VITE_KIMI_PRODUCT=study`.
+2. **Readiness/login state.** `deriveStudyScreen` (pure, tested) maps readiness: unreachable server → retry screen; `auth.required` → home stays browsable with a product notice and upload/catalog start disabled. No developer controls anywhere.
+3. **Material home.** Upload entry (no topic prompt), resumable course list from the browser registry, certified catalog section fed by `listCatalog()` (scans `<workspace>/packages/*/source/STUDY-PACKAGE.json` through the same manifest trust gate). One-time Quick/Deep decision after upload.
+4. **Preparation + Mission.** Parallel source/Mission progress surface; validated question cards dock at the bottom (single question, 2–4 options, other/skip/dismiss).
+5. **Outline.** Counts + exact plan revision from the snapshot; learning-path items parsed conservatively from `source/QUICK-PLAN.md` (parse failure → counts only). Learner feedback goes through `requestPlanChange`, which names the visible plan revision and asks the engine for a NEW revision — no in-place edits.
+6. **Generation + learning.** Incremental publication progress; lesson tree read from the workspace `lessons/` directory and rendered through the existing sandboxed `StudyLessonReader`; upgrade Quick→Deep offered on outline and learning surfaces.
+7. **Tutor drawer.** Page-context tutor questions (`kimiStudyTutor` metadata marker) projected by `buildTutorThread`; never exposes session/model/permission controls.
+
+New product actions added through the Controller/runtime seam (no Vue → API shortcuts): `listCourses`, `listCatalog`, `showHome`, `loadCourseText`, `listCourseFiles`, `sendTutorMessage`, `listTutorExchanges`, `requestPlanChange`.
+
+Verification at this point: typecheck clean; 912 frontend tests pass (23 new: screen model, outline parsing, tutor thread); style check keeps the 29-finding baseline with zero new findings; skill checker tests unchanged (12 pass).
+
+Still open (unchanged constraints):
+
+- Real authenticated journeys (Quick, Deep, catalog, upgrade, stale-plan rejection, reconnect, tutor) wait for provider login (`auth.ready=false` observed 2026-07-17).
+- Screenshot/animation parity passes happen only after those journeys run.
+- Deep-mode outline items currently render as counts only (QUICK-PLAN parsing covers quick plans; blueprint parsing is a later increment).
+- Catalog has no publisher tooling beyond the existing `build-catalog-package.py` producer contract; `<workspace>/packages/` is populated manually or by future tooling.
