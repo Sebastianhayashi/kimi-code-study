@@ -177,3 +177,55 @@ describe('DaemonKimiWebApi.getSessionGoal', () => {
     );
   });
 });
+
+describe('DaemonKimiWebApi.makeDirectory', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('posts the mkdir request and maps the created directory', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      envelope({
+        path: 'course-1',
+        name: 'course-1',
+        kind: 'directory',
+        modified_at: '2026-07-17T00:00:00.000Z',
+      }),
+    );
+
+    const entry = await createApi().makeDirectory('launcher/1', {
+      path: 'course-1',
+      recursive: false,
+    });
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
+      'http://daemon.test/api/v1/sessions/launcher%2F1/fs:mkdir',
+    );
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      body: JSON.stringify({ path: 'course-1', recursive: false }),
+    });
+    expect(entry).toMatchObject({
+      path: 'course-1',
+      name: 'course-1',
+      kind: 'directory',
+      modifiedAt: '2026-07-17T00:00:00.000Z',
+    });
+  });
+
+  it('omits recursive when the caller does not provide it', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      envelope({ path: 'course-2', name: 'course-2', kind: 'directory', modified_at: '' }),
+    );
+
+    await createApi().makeDirectory('launcher', { path: 'course-2' });
+
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]).toMatchObject({
+      body: JSON.stringify({ path: 'course-2' }),
+    });
+  });
+});

@@ -969,6 +969,19 @@ export class DaemonKimiWebApi implements KimiWebApi {
     };
   }
 
+  async makeDirectory(
+    sessionId: string,
+    input: { path: string; recursive?: boolean },
+  ): Promise<FsEntry> {
+    const body: Record<string, unknown> = { path: input.path };
+    if (input.recursive !== undefined) body['recursive'] = input.recursive;
+    const data = await this.http.post<WireFsEntry>(
+      `/sessions/${encodeURIComponent(sessionId)}/fs:mkdir`,
+      body,
+    );
+    return toAppFsEntry(data);
+  }
+
   async searchFiles(
     sessionId: string,
     input: { query: string; limit?: number },
