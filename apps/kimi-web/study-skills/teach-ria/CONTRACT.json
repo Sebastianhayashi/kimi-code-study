@@ -1,0 +1,10 @@
+{
+  "name": "teach-ria",
+  "contractRevision": "teach-ria-v1",
+  "productContractRevision": "kimi-study-foundation-v1",
+  "upstream": {
+    "repository": "https://github.com/Sebastianhayashi/skills",
+    "commit": "9ea4ed82d0d17cc5f5a5a58bce9a2810dac5787c",
+    "path": "/"
+  }
+}
