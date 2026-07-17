@@ -3,11 +3,14 @@ import type {
   AppMessage,
   AppQuestionRequest,
   AppSkill,
+  FsEntry,
   KimiEventConnection,
   KimiWebApi,
   QuestionResponse,
 } from '../../api/types';
 import { isDaemonApiError } from '../../api/errors';
+import { parseCatalogPackageManifest } from '../domain/catalogPackage';
+import type { CertifiedCatalogMaterial } from '../domain/catalogPackage';
 import { parseStudyArtifact } from '../domain/courseArtifact';
 import type {
   ContractIssue,
@@ -25,11 +28,15 @@ import type {
   StudyRuntimeReadiness,
   StudyRuntimeSnapshotLoad,
   StudyRuntimeWatchHandlers,
+  StudyTextLoad,
+  TutorLessonContext,
 } from './studyRuntime';
 import { normalizeStudyQuestion } from './studyRuntime';
 
 const SNAPSHOT_PATH = 'source/STUDY-SNAPSHOT.json';
 const LAUNCHER_TITLE = '[Kimi Study] workspace launcher';
+const CATALOG_DIR = 'packages';
+const PACKAGE_MANIFEST = 'source/STUDY-PACKAGE.json';
 const SESSION_NOT_FOUND = 40401;
 const FS_PATH_NOT_FOUND = 40409;
 const FS_ALREADY_EXISTS = 40919;
@@ -52,6 +59,23 @@ function assertCourseId(courseId: string): void {
   if (!/^[a-z0-9][a-z0-9-]{7,63}$/.test(courseId)) {
     throw new Error('Invalid Kimi Study course id.');
   }
+}
+
+/** Course artifacts are always workspace-relative paths like lessons/0001-x.html. */
+function assertArtifactPath(path: string): void {
+  if (path.startsWith('/') || path.includes('..') || path.includes('\\')
+    || !/^[a-zA-Z0-9][a-zA-Z0-9/_\-. ]*$/.test(path)) {
+    throw new Error('Invalid Kimi Study artifact path.');
+  }
+}
+
+/** Small deterministic digest for idempotent plan-edit operation ids. */
+function operationDigest(text: string): string {
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) {
+    hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 function runtimeIssue(code: string, message: string): ContractIssue {
@@ -114,6 +138,10 @@ export class KimiStudyRuntime implements StudyRuntimePort {
         message: error instanceof Error ? error.message : 'Kimi server is unavailable.',
       };
     }
+  }
+
+  async listCourses(): Promise<StudyCourseBinding[]> {
+    return this.registry.listCourses();
   }
 
   async uploadMaterial(file: File): Promise<UploadedMaterial> {
@@ -302,6 +330,138 @@ export class KimiStudyRuntime implements StudyRuntimePort {
         updatedAt: this.now(),
       });
     });
+  }
+
+  async requestPlanChange(courseId: string, planRevision: string, instruction: string): Promise<void> {
+    const binding = this.requireBinding(courseId);
+    const operation = `${courseId}:plan-edit:${planRevision}:${operationDigest(instruction)}`;
+    await this.coalesce(operation, async () => {
+      if (binding.operations[operation] !== undefined
+        || await this.sessionHasOperation(binding.sessionId, operation)) return;
+      const submitted = await this.api.submitPrompt(binding.sessionId, {
+        content: [{
+          type: 'text',
+          text: [
+            `Revise the course outline from plan revision ${planRevision}.`,
+            'Produce a NEW plan revision pinned to the current source and Mission revisions,',
+            'keep source/STUDY-SNAPSHOT.json current, and record approval provenance.',
+            `Learner request: ${instruction}`,
+          ].join(' '),
+        }],
+        metadata: {
+          kimiStudyOperationId: operation,
+          kimiStudyCourseId: courseId,
+          kimiStudyPlanRevision: planRevision,
+        },
+        permissionMode: 'auto',
+        planMode: false,
+        swarmMode: false,
+      });
+      this.registry.saveCourse({
+        ...binding,
+        operations: {
+          ...binding.operations,
+          [operation]: {
+            operationId: operation,
+            promptId: submitted.promptId,
+            startedAt: this.now(),
+          },
+        },
+        updatedAt: this.now(),
+      });
+    });
+  }
+
+  async readCourseText(courseId: string, path: string, maxBytes = 262144): Promise<StudyTextLoad> {
+    assertArtifactPath(path);
+    const binding = await this.resumeCourse(courseId);
+    if (binding === undefined) return { status: 'missing' };
+    try {
+      const file = await this.api.readFile(binding.sessionId, { path, offset: 0, length: maxBytes });
+      if (file.isBinary || file.encoding !== 'utf-8') return { status: 'unavailable' };
+      return { status: 'ready', content: file.content, truncated: file.truncated === true };
+    } catch (error) {
+      if (isDaemonApiError(error) && error.code === FS_PATH_NOT_FOUND) return { status: 'missing' };
+      return { status: 'unavailable' };
+    }
+  }
+
+  async listCourseFiles(courseId: string, path: string): Promise<readonly FsEntry[] | undefined> {
+    assertArtifactPath(path);
+    const binding = await this.resumeCourse(courseId);
+    if (binding === undefined) return undefined;
+    try {
+      const listing = await this.api.listDirectory(binding.sessionId, { path, depth: 1 });
+      return listing.items.filter((item) => item.kind === 'file');
+    } catch (error) {
+      if (isDaemonApiError(error) && error.code === FS_PATH_NOT_FOUND) return undefined;
+      throw error;
+    }
+  }
+
+  async sendTutorMessage(courseId: string, text: string, context: TutorLessonContext): Promise<void> {
+    const binding = this.requireBinding(courseId);
+    const anchor = context.lessonTitle !== undefined
+      ? `about the lesson "${context.lessonTitle}"`
+      : 'about the current course';
+    await this.api.submitPrompt(binding.sessionId, {
+      content: [{
+        type: 'text',
+        text: [
+          `As the course tutor, answer the learner ${anchor}, grounded in this course's sources.`,
+          'Keep source/STUDY-SNAPSHOT.json untouched unless the learner explicitly asks for a course change.',
+          `Learner question: ${text}`,
+        ].join(' '),
+      }],
+      metadata: {
+        kimiStudyTutor: '1',
+        kimiStudyTutorText: text,
+        kimiStudyCourseId: courseId,
+        ...(context.lessonPath !== undefined ? { kimiStudyLessonPath: context.lessonPath } : {}),
+      },
+      permissionMode: 'auto',
+      planMode: false,
+      swarmMode: false,
+    });
+  }
+
+  async listTutorMessages(courseId: string): Promise<readonly AppMessage[]> {
+    const binding = this.requireBinding(courseId);
+    const page = await this.api.listMessages(binding.sessionId, { pageSize: 100 });
+    return page.items;
+  }
+
+  /**
+   * Certified prepared-source packages under `<workspace>/packages/<id>/`.
+   * Manifests are parsed through the same trust gate as course starts;
+   * anything malformed, unsupported, or unsafe is hidden, never repaired.
+   */
+  async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> {
+    const launcher = await this.ensureLauncherSession();
+    let entries: readonly FsEntry[];
+    try {
+      const listing = await this.api.listDirectory(launcher, { path: CATALOG_DIR, depth: 1 });
+      entries = listing.items;
+    } catch (error) {
+      if (isDaemonApiError(error) && error.code === FS_PATH_NOT_FOUND) return [];
+      throw error;
+    }
+    const materials: CertifiedCatalogMaterial[] = [];
+    for (const entry of entries) {
+      if (entry.kind !== 'directory') continue;
+      try {
+        const file = await this.api.readFile(launcher, {
+          path: `${CATALOG_DIR}/${entry.name}/${PACKAGE_MANIFEST}`,
+        });
+        if (file.isBinary || file.encoding !== 'utf-8' || file.truncated) continue;
+        const parsed = parseCatalogPackageManifest(file.content);
+        if (parsed.status === 'ready') materials.push(parsed.material);
+      } catch (error) {
+        if (isDaemonApiError(error) && error.code === FS_PATH_NOT_FOUND) continue;
+        throw error;
+      }
+    }
+    return materials;
   }
 
   private async ensureBinding(

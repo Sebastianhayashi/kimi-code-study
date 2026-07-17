@@ -1,4 +1,4 @@
-import type { QuestionResponse } from '../../api/types';
+import type { FsEntry, QuestionResponse } from '../../api/types';
 import type {
   ContractIssue,
   CourseSnapshot,
@@ -10,11 +10,14 @@ import {
   createCatalogCourse,
   createUploadCourse,
 } from '../domain/courseState';
+import { buildTutorThread, type TutorExchange } from '../domain/tutorThread';
 import type { StudyCourseBinding } from '../runtime/courseRegistry';
 import type {
   StudyQuestion,
   StudyRuntimePort,
   StudyRuntimeReadiness,
+  StudyTextLoad,
+  TutorLessonContext,
 } from '../runtime/studyRuntime';
 
 export type StudyProductStage =
@@ -92,6 +95,30 @@ export class StudyProductController {
     const readiness = await this.runtime.checkReadiness();
     this.update({ readiness });
     return readiness;
+  }
+
+  /** Resumable course pointers for the home screen (registry order). */
+  async listCourses(): Promise<StudyCourseBinding[]> {
+    return this.runtime.listCourses();
+  }
+
+  /** Certified prepared-source packages offered on the home screen. */
+  async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> {
+    return this.runtime.listCatalog();
+  }
+
+  /** Leave the active course and return to the home screen. */
+  showHome(): void {
+    this.stopWatching?.();
+    this.stopWatching = undefined;
+    this.uploadedMaterial = undefined;
+    this.update({
+      stage: 'idle',
+      snapshot: null,
+      binding: null,
+      question: null,
+      issues: [],
+    });
   }
 
   async upload(file: File): Promise<CourseSnapshot> {
@@ -228,6 +255,48 @@ export class StudyProductController {
       this.fail('upgrade_failed', error);
       throw error;
     }
+  }
+
+  /** Read one workspace artifact for the active course (plan, lesson, …). */
+  async loadCourseText(path: string, maxBytes?: number): Promise<StudyTextLoad> {
+    const snapshot = this.requireSnapshot();
+    return this.runtime.readCourseText(snapshot.courseId, path, maxBytes);
+  }
+
+  /** List files directly inside one workspace directory of the active course. */
+  async listCourseFiles(path: string): Promise<readonly FsEntry[] | undefined> {
+    const snapshot = this.requireSnapshot();
+    return this.runtime.listCourseFiles(snapshot.courseId, path);
+  }
+
+  /** Ask the course tutor; the current page context anchors the answer. */
+  async sendTutorMessage(text: string, context: TutorLessonContext = {}): Promise<void> {
+    const snapshot = this.requireSnapshot();
+    const trimmed = text.trim();
+    if (trimmed.length === 0) throw new Error('Tutor question is empty.');
+    await this.runtime.sendTutorMessage(snapshot.courseId, trimmed, context);
+  }
+
+  /** Tutor thread for the active course, oldest exchange first. */
+  async listTutorExchanges(): Promise<readonly TutorExchange[]> {
+    const snapshot = this.requireSnapshot();
+    const messages = await this.runtime.listTutorMessages(snapshot.courseId);
+    return buildTutorThread(messages);
+  }
+
+  /**
+   * Ask the teaching engine for a new outline revision from learner feedback.
+   * The request always names the currently visible plan revision; the engine
+   * (not the UI) produces the next revision through its quality gates.
+   */
+  async requestPlanChange(instruction: string): Promise<void> {
+    const snapshot = this.requireSnapshot();
+    const text = instruction.trim();
+    if (snapshot.plan.status !== 'ready' || snapshot.plan.revision === undefined) {
+      throw new Error('Only the current ready outline revision can be revised.');
+    }
+    if (text.length === 0) throw new Error('Outline change request is empty.');
+    await this.runtime.requestPlanChange(snapshot.courseId, snapshot.plan.revision, text);
   }
 
   dispose(): void {

@@ -1,4 +1,4 @@
-import { computed, onUnmounted, readonly, shallowRef } from 'vue';
+import { computed, onUnmounted, shallowRef, type InjectionKey } from 'vue';
 
 import { getKimiWebApi } from '../../api';
 import { StudyProductController } from '../product/studyProductController';
@@ -24,26 +24,42 @@ export function useStudyProduct(options: UseStudyProductOptions = {}) {
       { workspaceRoot: options.workspaceRoot ?? STUDY_WORKSPACE_ROOT },
     ),
   );
-  const view = shallowRef(controller.view);
-  const unsubscribe = controller.subscribe((next) => { view.value = next; });
+  const current = shallowRef(controller.view);
+  const unsubscribe = controller.subscribe((next) => { current.value = next; });
   onUnmounted(() => {
     unsubscribe();
     controller.dispose();
   });
 
   return {
-    view: readonly(view),
-    isBusy: computed(() => ['uploading', 'starting'].includes(view.value.stage)),
+    // A computed without a setter is read-only to consumers while keeping the
+    // exact StudyProductView shape (readonly() would deep-freeze nested
+    // mutable arrays and break assignability).
+    view: computed(() => current.value),
+    isBusy: computed(() => ['uploading', 'starting'].includes(current.value.stage)),
     upload: controller.upload.bind(controller),
     selectMode: controller.selectMode.bind(controller),
     startCatalog: controller.startCatalog.bind(controller),
     open: controller.open.bind(controller),
     refresh: controller.refresh.bind(controller),
+    listCourses: controller.listCourses.bind(controller),
+    listCatalog: controller.listCatalog.bind(controller),
+    showHome: controller.showHome.bind(controller),
     answerQuestion: controller.answerQuestion.bind(controller),
     skipQuestion: controller.skipQuestion.bind(controller),
     dismissQuestion: controller.dismissQuestion.bind(controller),
     generate: controller.generate.bind(controller),
     upgradeToDeep: controller.upgradeToDeep.bind(controller),
     checkReadiness: controller.checkReadiness.bind(controller),
+    loadCourseText: controller.loadCourseText.bind(controller),
+    listCourseFiles: controller.listCourseFiles.bind(controller),
+    sendTutorMessage: controller.sendTutorMessage.bind(controller),
+    listTutorExchanges: controller.listTutorExchanges.bind(controller),
+    requestPlanChange: controller.requestPlanChange.bind(controller),
   };
 }
+
+export type StudyProductApi = ReturnType<typeof useStudyProduct>;
+
+/** Single-owner injection: the shell provides, product components inject. */
+export const STUDY_PRODUCT_INJECTION_KEY: InjectionKey<StudyProductApi> = Symbol('kimi-study-product');

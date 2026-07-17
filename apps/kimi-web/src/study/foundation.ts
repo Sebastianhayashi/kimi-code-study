@@ -1,7 +1,7 @@
 /** Stable UI-facing surface for the Kimi Study product foundation. */
 
-export { useStudyProduct } from './composables/useStudyProduct';
-export type { UseStudyProductOptions } from './composables/useStudyProduct';
+export { useStudyProduct, STUDY_PRODUCT_INJECTION_KEY } from './composables/useStudyProduct';
+export type { StudyProductApi, UseStudyProductOptions } from './composables/useStudyProduct';
 
 export {
   parseCatalogPackageManifest,
@@ -13,6 +13,16 @@ export type {
   CertifiedCatalogMaterial,
 } from './domain/catalogPackage';
 
+export {
+  extractHtmlTitle,
+  parseQuickPlanOutline,
+  QUICK_PLAN_PATH,
+} from './domain/courseOutline';
+export type {
+  CourseOutline,
+  CourseOutlineItem,
+} from './domain/courseOutline';
+
 export type {
   ContractIssue,
   CoursePhase,
@@ -21,9 +31,26 @@ export type {
   StudyMode,
 } from './domain/courseContract';
 
+export type { LessonSource, LessonStatus } from './domain/lessonDocument';
+
+export type { TutorExchange } from './domain/tutorThread';
+
 export type {
   StudyProductStage,
   StudyProductView,
 } from './product/studyProductController';
 
-export type { StudyQuestion, StudyRuntimeReadiness } from './runtime/studyRuntime';
+export { deriveStudyScreen } from './product/studyScreenModel';
+export type {
+  StudyScreen,
+  StudyScreenModel,
+} from './product/studyScreenModel';
+
+export type { StudyCourseBinding } from './runtime/courseRegistry';
+export type { FsEntry, QuestionResponse } from '../api/types';
+export type {
+  StudyQuestion,
+  StudyRuntimeReadiness,
+  StudyTextLoad,
+  TutorLessonContext,
+} from './runtime/studyRuntime';

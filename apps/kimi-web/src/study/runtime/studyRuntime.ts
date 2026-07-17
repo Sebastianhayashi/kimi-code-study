@@ -1,5 +1,7 @@
 import type {
+  AppMessage,
   AppQuestionRequest,
+  FsEntry,
   QuestionResponse,
 } from '../../api/types';
 import type {
@@ -24,6 +26,18 @@ export type StudyRuntimeSnapshotLoad = StudyArtifactLoad
   | { readonly status: 'missing' }
   | { readonly status: 'unavailable'; readonly issues: readonly ContractIssue[] };
 
+/** Bounded text read of one workspace artifact (plan, lesson, outline…). */
+export type StudyTextLoad =
+  | { readonly status: 'ready'; readonly content: string; readonly truncated: boolean }
+  | { readonly status: 'missing' }
+  | { readonly status: 'unavailable' };
+
+/** Current page context carried into every tutor prompt. */
+export interface TutorLessonContext {
+  readonly lessonPath?: string;
+  readonly lessonTitle?: string;
+}
+
 export type StudyQuestion = AppQuestionRequest & {
   readonly questions: readonly [AppQuestionRequest['questions'][number]];
 };
@@ -44,6 +58,8 @@ export interface StartCourseInput {
 
 export interface StudyRuntimePort {
   checkReadiness(): Promise<StudyRuntimeReadiness>;
+  /** Browser-local resumable course pointers, most recently updated first. */
+  listCourses(): Promise<StudyCourseBinding[]>;
   uploadMaterial(file: File): Promise<UploadedMaterial>;
   startCourse(input: StartCourseInput): Promise<StudyCourseBinding>;
   resumeCourse(courseId: string): Promise<StudyCourseBinding | undefined>;
@@ -52,6 +68,18 @@ export interface StudyRuntimePort {
   answerQuestion(courseId: string, questionId: string, response: QuestionResponse): Promise<void>;
   dismissQuestion(courseId: string, questionId: string): Promise<void>;
   requestGeneration(courseId: string, planRevision: string): Promise<void>;
+  /** Read one course workspace artifact as bounded text. */
+  readCourseText(courseId: string, path: string, maxBytes?: number): Promise<StudyTextLoad>;
+  /** List files directly inside one course workspace directory (undefined = absent). */
+  listCourseFiles(courseId: string, path: string): Promise<readonly FsEntry[] | undefined>;
+  /** Certified prepared-source packages available in the workspace catalog. */
+  listCatalog(): Promise<readonly CertifiedCatalogMaterial[]>;
+  /** Ask the course tutor with the current page context attached. */
+  sendTutorMessage(courseId: string, text: string, context: TutorLessonContext): Promise<void>;
+  /** Session messages, used to project the tutor thread. */
+  listTutorMessages(courseId: string): Promise<readonly AppMessage[]>;
+  /** Request a new plan revision from learner feedback on the visible revision. */
+  requestPlanChange(courseId: string, planRevision: string, instruction: string): Promise<void>;
 }
 
 export function normalizeStudyQuestion(

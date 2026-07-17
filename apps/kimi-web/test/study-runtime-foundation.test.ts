@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AppQuestionRequest, QuestionResponse } from '../src/api/types';
+import type { AppMessage, AppQuestionRequest, FsEntry, QuestionResponse } from '../src/api/types';
 import { applyCourseEvent, createUploadCourse } from '../src/study/domain/courseState';
+import type { CertifiedCatalogMaterial } from '../src/study/domain/catalogPackage';
 import { StudyProductController } from '../src/study/product/studyProductController';
 import { installedSkillMatches } from '../src/study/runtime/kimiStudyRuntime';
 import {
@@ -15,6 +16,7 @@ import type {
   StudyRuntimeReadiness,
   StudyRuntimeSnapshotLoad,
   StudyRuntimeWatchHandlers,
+  StudyTextLoad,
 } from '../src/study/runtime/studyRuntime';
 import { normalizeStudyQuestion } from '../src/study/runtime/studyRuntime';
 
@@ -55,6 +57,9 @@ class FakeRuntime implements StudyRuntimePort {
   async checkReadiness(): Promise<StudyRuntimeReadiness> {
     return { api: 'ready', auth: 'ready', backend: 'v2', capabilities: {} };
   }
+  async listCourses(): Promise<StudyCourseBinding[]> {
+    return this.currentBinding === undefined ? [] : [this.currentBinding];
+  }
   async uploadMaterial(): Promise<typeof this.uploaded> { return this.uploaded; }
   async startCourse(input: StartCourseInput): Promise<StudyCourseBinding> {
     this.startCalls.push(input);
@@ -70,6 +75,12 @@ class FakeRuntime implements StudyRuntimePort {
   async answerQuestion(_courseId: string, _questionId: string, _response: QuestionResponse): Promise<void> {}
   async dismissQuestion(): Promise<void> {}
   async requestGeneration(): Promise<void> {}
+  async readCourseText(): Promise<StudyTextLoad> { return { status: 'missing' }; }
+  async listCourseFiles(): Promise<readonly FsEntry[] | undefined> { return undefined; }
+  async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> { return []; }
+  async sendTutorMessage(): Promise<void> {}
+  async listTutorMessages(): Promise<readonly AppMessage[]> { return []; }
+  async requestPlanChange(): Promise<void> {}
 }
 
 describe('StudyCourseRegistry', () => {
