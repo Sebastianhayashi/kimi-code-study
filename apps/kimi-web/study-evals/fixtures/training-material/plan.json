@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "title": "从班前检查到事故处置",
+  "lessons": [
+    {
+      "order": 1,
+      "title": "识别必须停机的班前信号",
+      "objective": "完成四项班前检查并在发现液压油渗漏时停止启动车辆",
+      "sourceAnchors": ["TR-1 班前检查"]
+    },
+    {
+      "order": 2,
+      "title": "在盲区把行人优先落到动作",
+      "objective": "通过盲区前依次执行减速、鸣笛和让行动作",
+      "sourceAnchors": ["TR-2 行人与盲区"]
+    },
+    {
+      "order": 3,
+      "title": "碰撞后保护人员与现场",
+      "objective": "在十分钟报告并判断何时不得移动伤者",
+      "sourceAnchors": ["TR-3 事故处置"]
+    }
+  ],
+  "visibleDeferrals": []
+}

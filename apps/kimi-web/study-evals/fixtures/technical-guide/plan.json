@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "title": "让重试安全而有边界",
+  "lessons": [
+    {
+      "order": 1,
+      "title": "先判断响应，再消耗重试预算",
+      "objective": "根据响应类型决定是否重试，并计算下一次等待时间",
+      "sourceAnchors": ["T-1 重试预算", "T-3 不可重试响应"]
+    },
+    {
+      "order": 2,
+      "title": "用幂等键避免重复订单",
+      "objective": "为内容相同与内容变化的创建请求选择正确的幂等键",
+      "sourceAnchors": ["T-2 幂等键"]
+    }
+  ],
+  "visibleDeferrals": []
+}

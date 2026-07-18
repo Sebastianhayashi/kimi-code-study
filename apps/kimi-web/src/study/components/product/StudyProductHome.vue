@@ -1,6 +1,5 @@
 <!-- apps/kimi-web/src/study/components/product/StudyProductHome.vue -->
-<!-- Kimi Study home: material upload entry plus resumable course list.
-     No topic-prompt start — courses begin from real learner material. -->
+<!-- Kimi Study core home: one material upload entry and resumable courses. -->
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -8,11 +7,10 @@ import Button from '../../../components/ui/Button.vue';
 import Card from '../../../components/ui/Card.vue';
 import Icon from '../../../components/ui/Icon.vue';
 import Badge from '../../../components/ui/Badge.vue';
-import type { CertifiedCatalogMaterial, StudyCourseBinding } from '../../foundation';
+import type { StudyCourseBinding } from '../../foundation';
 
 const props = defineProps<{
   courses: readonly StudyCourseBinding[];
-  catalog: readonly CertifiedCatalogMaterial[];
   busy: boolean;
   authRequired: boolean;
   readinessMessage?: string;
@@ -21,12 +19,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   upload: [file: File];
   open: [courseId: string];
-  catalog: [material: CertifiedCatalogMaterial];
   recheck: [];
 }>();
 
 const { t } = useI18n();
-
 const fileInput = ref<HTMLInputElement | null>(null);
 
 function pickFile(): void {
@@ -87,31 +83,6 @@ function formatUpdated(iso: string): string {
       <p class="study-hero-formats">{{ t('study.product.uploadFormats') }}</p>
     </section>
 
-    <section v-if="catalog.length > 0" class="study-courses">
-      <h2 class="study-section-title">{{ t('study.product.catalogTitle') }}</h2>
-      <div class="study-course-list">
-        <Card
-          v-for="material in catalog"
-          :key="material.packageRef"
-          class="study-course-item"
-          :class="{ 'is-disabled': authRequired }"
-          tabindex="0"
-          role="button"
-          @click="authRequired || emit('catalog', material)"
-          @keydown.enter="authRequired || emit('catalog', material)"
-        >
-          <div class="study-course-row">
-            <Icon name="graduation-cap" size="md" />
-            <div class="study-course-info">
-              <span class="study-course-title">{{ material.title }}</span>
-            </div>
-            <Badge variant="info" size="sm">{{ t('study.product.courseKindCatalog') }}</Badge>
-            <Icon name="chevron-right" size="md" />
-          </div>
-        </Card>
-      </div>
-    </section>
-
     <section class="study-courses">
       <h2 class="study-section-title">{{ t('study.product.myCourses') }}</h2>
       <div v-if="courses.length > 0" class="study-course-list">
@@ -125,15 +96,13 @@ function formatUpdated(iso: string): string {
           @keydown.enter="emit('open', course.courseId)"
         >
           <div class="study-course-row">
-            <Icon name="book" size="md" />
+            <Icon name="file-text" size="md" />
             <div class="study-course-info">
               <span class="study-course-title">{{ course.title }}</span>
               <span class="study-course-meta">{{ formatUpdated(course.updatedAt) }}</span>
             </div>
             <Badge variant="neutral" size="sm">
-              {{ course.sourceKind === 'catalog'
-                ? t('study.product.courseKindCatalog')
-                : t('study.product.courseKindUpload') }}
+              {{ t('study.product.courseKindUpload') }}
             </Badge>
             <Icon name="chevron-right" size="md" />
           </div>
@@ -243,15 +212,6 @@ function formatUpdated(iso: string): string {
 
 .study-course-item:hover {
   border-color: var(--color-accent-bd);
-}
-
-.study-course-item.is-disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.study-course-item.is-disabled:hover {
-  border-color: var(--color-line);
 }
 
 .study-course-row {

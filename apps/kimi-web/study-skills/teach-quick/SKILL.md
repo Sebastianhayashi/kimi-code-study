@@ -1,6 +1,6 @@
 ---
 name: teach-quick
-description: "[contract:teach-quick-v2] Survey an uploaded learning source end to end, clarify the learner's Mission with at most one question, and build the fastest honest course path. Use for Kimi Study quick mode when the learner is still deciding how deeply to study a book, document, transcript, or mixed set of learning materials."
+description: "[contract:teach-quick-v4] Survey an uploaded learning source end to end, clarify the learner's Mission with at most one question, and build the fastest honest Chinese course path. Use for Kimi Study quick mode when the learner is still deciding how deeply to study a book, document, transcript, or mixed set of learning materials."
 ---
 
 # Teach Quick
@@ -23,7 +23,7 @@ Maintain these artifacts as they become relevant:
 - `source/QUICK-SURVEY.md`: traceable survey of the entire supplied material. Follow [QUICK-SURVEY-FORMAT.md](./QUICK-SURVEY-FORMAT.md).
 - `source/QUICK-PLAN.md`: mission-bound outline. Follow [QUICK-PLAN-FORMAT.md](./QUICK-PLAN-FORMAT.md).
 - `MISSION.md`: concrete learner outcome. Follow [MISSION-FORMAT.md](./MISSION-FORMAT.md).
-- `lessons/*.html`: short numbered lessons published incrementally.
+- `lessons/*.html`: short numbered lessons published incrementally. Follow [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md). Current-lesson replacements also follow [LESSON-REVISION-FORMAT.md](./LESSON-REVISION-FORMAT.md).
 - `lessons/index.json`: versioned lesson title/order/publication manifest. Follow [LESSON-INDEX-FORMAT.md](./LESSON-INDEX-FORMAT.md).
 - `reference/*.html`: durable quick-reference artifacts.
 - `learning-records/*.md`: evidence-backed changes in understanding. Follow [LEARNING-RECORD-FORMAT.md](./LEARNING-RECORD-FORMAT.md).
@@ -71,7 +71,7 @@ Never write `actor=user` unless the learner actually performed an explicit exper
 
 ### 1. Initialize
 
-Create or update `source/STUDY-SNAPSHOT.json` with mode `quick`, Skill pin `teach-quick-v2`, source status `surveying`, Mission status `not_started` or `interviewing`, and plan/generation status `not_started`.
+Create or update `source/STUDY-SNAPSHOT.json` with mode `quick`, Skill pin `teach-quick-v4`, source status `surveying`, Mission status `not_started` or `interviewing`, and plan/generation status `not_started`.
 
 ### 2. Survey the source
 
@@ -87,23 +87,47 @@ Do not design the course until both the survey revision and Mission revision are
 
 After the plan passes `python3 scripts/check-quick-course.py --workspace /absolute/workspace`, set plan status `ready` in the snapshot. Stop and return control to Kimi Study so the learner can see the outline before generation.
 
+### 4a. Revise the visible outline on request
+
+When Kimi Study sends a learner instruction naming the exact current plan revision:
+
+- reopen the current survey, Mission, plan, and snapshot; reject the request if the named revision is stale;
+- interpret ordinary Chinese requests about the audience, emphasis, lesson count, or teaching order without asking the learner to edit internal files;
+- revise only this course's plan; do not create another course, restart source surveying, or begin lesson generation;
+- give the candidate a new stable plan revision and keep its source and Mission pins exact;
+- keep the last ready `QUICK-PLAN.md` and snapshot authoritative while drafting and checking the candidate;
+- replace `source/QUICK-PLAN.md` and its snapshot plan fields only after every plan integrity check passes; if revision fails, leave both authoritative artifacts unchanged and report the failure;
+- stop and return control after publishing the new ready revision so Kimi Study can show it for learner confirmation.
+
+Changing the outline does not authorize inventing unsupported source content or silently changing the learner's Mission. If the request conflicts with the source or Mission, retain the current revision and explain the conflict in learner-facing Chinese.
+
 ### 5. Generate on request
 
 Only generate when the request names the exact current plan revision. Ignore or reject stale generation requests.
 
 Publish lessons incrementally as `lessons/NNNN-dash-case-name.html`. After validating each lesson, update `lessons/index.json` first, then set `publishedLessons` in the snapshot to the manifest's published count and set generation status `partially_ready`. Set it to `ready` only when every indexed lesson is published and every planned reference destination exists.
 
+Before authoring the first lesson, read [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md). Write learner-facing content in natural Chinese. The visible learning moves are obligations, not a mechanical template: spend space on the source's actual difficulty and omit unsupported detail instead of padding every section.
+
 Each lesson must:
 
 - teach one tightly scoped move tied to the Mission;
 - cite stable locations in the supplied source;
+- label source-grounded blocks with their exact anchors and label invented teaching transfers separately;
+- state one observable learning objective, explain the hard step progressively, and end with an aligned self-check plus immediate answer logic;
 - distinguish source claims from external corrections;
 - include a retrieval or practice loop with immediate feedback;
 - preserve important cases and boundaries instead of reducing them to slogans;
 - link to relevant lessons and reference artifacts;
 - invite follow-up questions from the tutor.
 
+Before publication, run `python3 scripts/check-quick-course.py --workspace /absolute/workspace --lesson lessons/NNNN-name.html`. After the lesson index and snapshot advance, run the full checker again so cross-lesson repetition and publication counts are checked. A structural pass never replaces reopening and semantically comparing every source anchor.
+
 Use high-trust external sources only to correct, update, or clarify the uploaded material. Never replace missing source content with parametric guesses.
+
+### 5a. Revise or regenerate one published lesson
+
+When Kimi Study names an exact lesson path, base content revision, and operation id, read [LESSON-REVISION-FORMAT.md](./LESSON-REVISION-FORMAT.md) before acting. Reject stale revisions. Draft and validate only the named lesson, preserve its indexed identity and exact source-anchor set, then publish through `scripts/lesson_revision.py`. Do not create a course, change the plan, alter generation counts, or touch another lesson. A failed check leaves the published lesson unchanged.
 
 ## Upgrade boundary
 

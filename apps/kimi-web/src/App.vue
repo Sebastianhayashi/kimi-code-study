@@ -38,7 +38,7 @@ import type { SwarmMember } from './composables/swarmGroups';
 import ServerAuthDialog from './components/ServerAuthDialog.vue';
 import { initServerAuth, onAuthRequired } from './api/daemon/serverAuth';
 import type { AppConfig, ThinkingLevel } from './api/types';
-import { commitLevel, effectiveThinkingLevel, segmentsFor } from './lib/modelThinking';
+import { commitLevel, defaultThinkingLevelFor, effectiveThinkingLevel, segmentsFor } from './lib/modelThinking';
 import { stripSkillPrefix } from './lib/slashCommands';
 import Button from './components/ui/Button.vue';
 import IconButton from './components/ui/IconButton.vue';
@@ -119,7 +119,7 @@ function nextThinkingLevel(current: ThinkingLevel | undefined): ThinkingLevel {
   // No stored preference means the model default is in effect — cycle from
   // there; a level the model doesn't declare (indexOf → -1) starts the cycle
   // at the first segment.
-  const idx = segs.indexOf(effectiveThinkingLevel(model, current));
+  const idx = segs.indexOf(effectiveThinkingLevel(model, current ?? defaultThinkingLevelFor(model)));
   const next = segs[(idx + 1) % segs.length] ?? segs[0] ?? 'off';
   return commitLevel(model, next);
 }
@@ -129,7 +129,7 @@ function nextThinkingLevel(current: ThinkingLevel | undefined): ThinkingLevel {
 // will actually run, not a blank.
 const statusPanelThinking = computed<ThinkingLevel>(() => {
   const model = client.models.value.find((m) => m.id === client.status.value.modelId);
-  return effectiveThinkingLevel(model, client.thinking.value);
+  return effectiveThinkingLevel(model, client.thinking.value ?? defaultThinkingLevelFor(model));
 });
 
 // First-run onboarding (language + welcome greeting). Shown until the user

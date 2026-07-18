@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "training-material",
+  "category": "培训材料",
+  "lessonPath": "lesson.html",
+  "coverageAnchors": ["TR-1 班前检查", "TR-2 行人与盲区", "TR-3 事故处置"],
+  "allowedLessonAnchors": ["TR-1 班前检查", "TR-2 行人与盲区"],
+  "requiredSourcePhrases": [
+    "发现液压油渗漏时不得启动车辆",
+    "驾驶员须减速、鸣笛，并让行人先行"
+  ],
+  "objectiveKeywords": ["检查", "停机"],
+  "forbiddenClaims": ["少量渗漏可以完成本班作业"]
+}

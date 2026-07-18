@@ -1,6 +1,6 @@
 ---
 name: teach-ria
-description: "[contract:teach-ria-v2] Read an uploaded textbook or nonfiction source in full, distill it through verified RIA++ method units while interviewing the learner's Mission, and build a source-faithful course. Use for Kimi Study deep mode, upgrades from quick mode, and certified preprocessed textbook packages."
+description: "[contract:teach-ria-v4] Read an uploaded textbook or nonfiction source in full, distill it through verified RIA++ method units while interviewing the learner's Mission, and build a source-faithful Chinese course. Use for Kimi Study deep mode, upgrades from quick mode, and certified preprocessed textbook packages."
 ---
 
 # Teach RIA
@@ -28,7 +28,7 @@ Maintain these artifacts as relevant:
 - `source/TEACHING-MAP.md`: ordered mission-bound slices.
 - `source/lesson-briefs/*.md`: source-grounded publication contracts. Follow [LESSON-BRIEF-FORMAT.md](./LESSON-BRIEF-FORMAT.md).
 - `source/STUDY-PACKAGE.json`: immutable source-only manifest when preparing a catalog textbook. Follow [CATALOG-PACKAGE-FORMAT.md](./CATALOG-PACKAGE-FORMAT.md).
-- `lessons/*.html` and `lessons/index.json` (follow [LESSON-INDEX-FORMAT.md](./LESSON-INDEX-FORMAT.md)), plus `reference/*.html`, `learning-records/*.md`, `RESOURCES.md`, `assets/*`, and `NOTES.md`.
+- `lessons/*.html` and `lessons/index.json` (follow [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md), [LESSON-REVISION-FORMAT.md](./LESSON-REVISION-FORMAT.md), and [LESSON-INDEX-FORMAT.md](./LESSON-INDEX-FORMAT.md)), plus `reference/*.html`, `learning-records/*.md`, `RESOURCES.md`, `assets/*`, and `NOTES.md`.
 
 Inspect current artifacts before acting. A valid source-bound reading/RIA revision survives a Mission change; mission-bound blueprint, map, and unpublished briefs do not.
 
@@ -117,18 +117,27 @@ Only respond to generation requests that name the exact approved plan revision. 
 
 Before each book-derived lesson:
 
-1. create `source/lesson-briefs/NNNN-name.md` from the next unconsumed teaching-map slice;
-2. reopen every original source anchor named in the brief;
-3. run `python3 scripts/check-book-course.py --workspace /absolute/workspace --brief source/lesson-briefs/NNNN-name.md`;
-4. create `lessons/NNNN-name.html` only after the brief passes;
-5. compare the lesson line by line with the brief and reopened source;
-6. mark the brief published and run the checker with `--lesson`;
-7. atomically update `lessons/index.json` with the lesson title, order, and `published` status;
-8. set `publishedLessons` to the manifest's published count and publish incrementally in the Study snapshot.
+1. read [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md) before the first lesson in this generation run;
+2. create `source/lesson-briefs/NNNN-name.md` from the next unconsumed teaching-map slice;
+3. reopen every original source anchor named in the brief;
+4. run `python3 scripts/check-book-course.py --workspace /absolute/workspace --brief source/lesson-briefs/NNNN-name.md`;
+5. create `lessons/NNNN-name.html` only after the brief passes;
+6. compare the lesson line by line with the brief and reopened source;
+7. mark the brief published and run the checker with `--lesson`;
+8. atomically update `lessons/index.json` with the lesson title, order, and `published` status;
+9. set `publishedLessons` to the manifest's published count, run the full checker to catch repetition and publication drift, and publish incrementally in the Study snapshot.
 
-Each lesson teaches one primary capability slice, retains a complete original case and reasoning chain, transfers it to the Mission, shows a boundary or misconception, includes practice with immediate feedback, cites stable source locations, and connects retrieval across lessons.
+Each lesson teaches one primary capability slice in natural Chinese, retains a complete original case and reasoning chain, explains the difficult step progressively, transfers it to the Mission, shows a boundary or misconception, includes an objective-aligned self-check with immediate feedback, cites stable source locations, and connects retrieval across lessons. Mark source-grounded blocks with exact source anchors and mark invented teaching transfers separately; never let a fresh example masquerade as a book case. Do not reuse generic definitions, introductions, or summaries across lessons.
 
 Reuse assets and build durable reference material. Treat parametric knowledge as untrusted; use high-trust external sources only to correct, update, or clarify the supplied source.
+
+## Current-lesson revision and regeneration
+
+When Kimi Study names an exact published lesson path, base content revision, and operation id, read [LESSON-REVISION-FORMAT.md](./LESSON-REVISION-FORMAT.md) before acting. Reopen the lesson brief and every cited original-source anchor. Reject a stale base. Draft and validate only `.study-drafts/<same-file-name>.html`, preserve the indexed title and exact anchor set, run both the lesson and full-course fidelity gates, then publish through `scripts/lesson_revision.py`. Do not change the course, blueprint, teaching map, generation counts, or another lesson. A failed check leaves the published lesson unchanged.
+
+## Upgrade from an existing quick course
+
+An upgrade reuses the same course workspace, source identity, and session. Inspect the existing Quick survey, plan, lesson index, and published lesson files before deep work starts. Never delete or overwrite a completed lesson during reading, distillation, or blueprint design. A Quick lesson may be adopted or replaced only after its Deep brief, reopened-source, Chinese quality, and publication gates pass; until then it remains the last valid rollback artifact. Do not create a second course directory or reset unrelated learning records.
 
 ## Failure and repair
 

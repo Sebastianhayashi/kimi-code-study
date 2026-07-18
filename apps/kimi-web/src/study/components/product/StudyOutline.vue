@@ -9,9 +9,11 @@
 import { computed, inject, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from '../../../components/ui/Button.vue';
+import Banner from '../../../components/ui/Banner.vue';
 import Card from '../../../components/ui/Card.vue';
 import Icon from '../../../components/ui/Icon.vue';
 import Badge from '../../../components/ui/Badge.vue';
+import Textarea from '../../../components/ui/Textarea.vue';
 import {
   parseQuickPlanOutline,
   QUICK_PLAN_PATH,
@@ -54,14 +56,29 @@ const revisionLabel = computed(() => {
 });
 
 // --- Outline items from the workspace plan artifact (quick survey plans). ---
-const outline = ref<CourseOutline | undefined>(undefined);
+const loadedOutline = ref<{
+  readonly revision: string;
+  readonly outline: CourseOutline;
+} | undefined>(undefined);
+const outline = computed(() => {
+  const loaded = loadedOutline.value;
+  if (loaded === undefined || loaded.revision !== props.snapshot.plan.revision) return undefined;
+  return loaded.outline;
+});
+let outlineLoadEpoch = 0;
 
 async function loadOutlineItems(): Promise<void> {
-  outline.value = undefined;
-  if (!planReady.value) return;
+  const epoch = ++outlineLoadEpoch;
+  const revision = props.snapshot.plan.revision;
+  if (!planReady.value || revision === undefined) {
+    loadedOutline.value = undefined;
+    return;
+  }
   const loaded = await product.loadCourseText(QUICK_PLAN_PATH);
+  if (epoch !== outlineLoadEpoch || props.snapshot.plan.revision !== revision) return;
   if (loaded.status !== 'ready') return;
-  outline.value = parseQuickPlanOutline(loaded.content);
+  const parsed = parseQuickPlanOutline(loaded.content);
+  if (parsed !== undefined) loadedOutline.value = { revision, outline: parsed };
 }
 
 onMounted(() => { void loadOutlineItems(); });
@@ -69,23 +86,22 @@ watch(() => props.snapshot.plan.revision, () => { void loadOutlineItems(); });
 
 // --- Revisioned outline edits: every request targets the visible revision. ---
 const reviseText = ref('');
-const reviseSent = ref(false);
-const reviseError = ref(false);
-const revising = ref(false);
+const planChange = computed(() => product.view.value.planChange);
+const revising = computed(() =>
+  planChange.value.status === 'submitting' || planChange.value.status === 'waiting');
+
+watch(() => planChange.value.status, (status) => {
+  if (status === 'succeeded') reviseText.value = '';
+});
 
 async function submitRevision(): Promise<void> {
   const text = reviseText.value.trim();
   if (text.length === 0 || revising.value) return;
-  revising.value = true;
-  reviseError.value = false;
   try {
     await product.requestPlanChange(text);
-    reviseText.value = '';
-    reviseSent.value = true;
   } catch {
-    reviseError.value = true;
-  } finally {
-    revising.value = false;
+    // The controller preserves the previous outline and exposes a retryable
+    // failed state. Keep the learner's instruction in the textarea.
   }
 }
 </script>
@@ -150,24 +166,32 @@ async function submitRevision(): Promise<void> {
           <Icon name="file-edit" size="md" />
           <span class="study-outline-revise-title">{{ t('study.product.outlineReviseTitle') }}</span>
         </div>
-        <textarea
+        <Textarea
           v-model="reviseText"
-          class="study-outline-revise-input"
-          rows="2"
+          :rows="2"
           :placeholder="t('study.product.outlineRevisePlaceholder')"
+          :aria-label="t('study.product.outlineReviseTitle')"
+          :disabled="busy"
+          :error="planChange.status === 'failed'"
           @keydown.enter.exact.prevent="submitRevision"
         />
+        <p class="study-outline-revise-example">
+          {{ t('study.product.outlineReviseExample') }}
+        </p>
+        <Banner v-if="planChange.status === 'waiting'" variant="info">
+          {{ t('study.product.outlineReviseWaiting') }}
+        </Banner>
+        <Banner v-else-if="planChange.status === 'succeeded'" variant="info">
+          {{ t('study.product.outlineReviseSuccess') }}
+        </Banner>
+        <Banner v-else-if="planChange.status === 'failed'" variant="danger">
+          {{ t('study.product.outlineReviseError') }}
+        </Banner>
         <div class="study-outline-revise-actions">
-          <p v-if="reviseSent" class="study-outline-revise-note">
-            {{ t('study.product.outlineReviseSent') }}
-          </p>
-          <p v-else-if="reviseError" class="study-outline-revise-note study-outline-revise-note--error">
-            {{ t('study.product.outlineReviseError') }}
-          </p>
           <Button
             variant="secondary"
             size="sm"
-            :disabled="reviseText.trim().length === 0"
+            :disabled="reviseText.trim().length === 0 || busy"
             :loading="revising"
             @click="submitRevision"
           >
@@ -353,22 +377,10 @@ async function submitRevision(): Promise<void> {
   color: var(--color-text);
 }
 
-.study-outline-revise-input {
-  width: 100%;
-  resize: vertical;
-  padding: var(--space-3);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-}
-
-.study-outline-revise-input:focus {
-  outline: none;
-  border-color: var(--color-accent-bd);
+.study-outline-revise-example {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-muted);
 }
 
 .study-outline-revise-actions {
@@ -376,16 +388,6 @@ async function submitRevision(): Promise<void> {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-3);
-}
-
-.study-outline-revise-note {
-  flex: 1;
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-
-.study-outline-revise-note--error {
-  color: var(--color-danger, var(--color-text-muted));
 }
 
 .study-upgrade {

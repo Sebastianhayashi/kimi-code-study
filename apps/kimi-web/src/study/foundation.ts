@@ -40,9 +40,19 @@ export type {
 
 export type { LessonSource, LessonStatus } from './domain/lessonDocument';
 
+export {
+  isLessonArtifactPath,
+  lessonArtifactRevision,
+} from './domain/lessonRevision';
+
 export type { TutorExchange } from './domain/tutorThread';
 
 export type {
+  StudyLessonOperationKind,
+  StudyLessonOperationState,
+  StudyLessonOperationStatus,
+  StudyPlanChangeState,
+  StudyPlanChangeStatus,
   StudyProductStage,
   StudyProductView,
 } from './product/studyProductController';

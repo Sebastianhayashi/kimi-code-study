@@ -1,7 +1,6 @@
 <!-- apps/kimi-web/src/study/StudyApp.vue -->
-<!-- Kimi Study product shell. Every screen renders against the product facade
-     (useStudyProduct) and the pure screen mapper — never against raw sessions,
-     models, permissions, or chat state. -->
+<!-- Kimi Study product shell. The core path is deliberately narrow:
+     upload material, generate with Quick, optionally deepen, then learn. -->
 <script setup lang="ts">
 import { computed, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -14,19 +13,15 @@ import {
   deriveStudyScreen,
   STUDY_PRODUCT_INJECTION_KEY,
   useStudyProduct,
-  type CertifiedCatalogMaterial,
   type QuestionResponse,
   type StudyCourseBinding,
 } from './foundation';
 import StudyProductHome from './components/product/StudyProductHome.vue';
-import StudyModeSelect from './components/product/StudyModeSelect.vue';
 import StudyPreparing from './components/product/StudyPreparing.vue';
 import StudyOutline from './components/product/StudyOutline.vue';
 import StudyLearning from './components/product/StudyLearning.vue';
 import StudyQuestionCard from './components/product/StudyQuestionCard.vue';
 
-// Hydrate the server-transport credential (#token fragment or localStorage)
-// before the facade's first REST/WS call, mirroring the chat client's boot.
 initServerAuth();
 
 const { t } = useI18n();
@@ -35,18 +30,12 @@ useAppearance();
 const product = useStudyProduct();
 provide(STUDY_PRODUCT_INJECTION_KEY, product);
 const courses = ref<readonly StudyCourseBinding[]>([]);
-const catalog = ref<readonly CertifiedCatalogMaterial[]>([]);
 
 async function reloadCourses(): Promise<void> {
   try {
     courses.value = await product.listCourses();
   } catch {
     courses.value = [];
-  }
-  try {
-    catalog.value = await product.listCatalog();
-  } catch {
-    catalog.value = [];
   }
 }
 
@@ -63,8 +52,6 @@ const model = computed(() => deriveStudyScreen(product.view.value));
 const snapshot = computed(() => product.view.value.snapshot);
 const question = computed(() => product.view.value.question);
 
-// A 401 from the server means the transport credential is missing/expired —
-// offer a token entry instead of the generic "unreachable" screen.
 const needsServerCredential = computed(() =>
   model.value.screen === 'unavailable'
   && /401|unauthorized/i.test(model.value.readinessMessage ?? ''));
@@ -99,16 +86,16 @@ async function guard(action: () => Promise<unknown>): Promise<void> {
   try {
     await action();
   } catch {
-    // Failures transition the facade to the error screen; nothing to do here.
+    // Failures transition the facade to the error screen.
   }
 }
 
 function onUpload(file: File): Promise<void> {
-  return guard(() => product.upload(file));
-}
-
-function onSelectMode(mode: 'quick' | 'deep'): Promise<void> {
-  return guard(() => product.selectMode(mode));
+  return guard(async () => {
+    await product.upload(file);
+    // Quick is the product default. Deep remains an optional later enhancement.
+    await product.selectMode('quick');
+  });
 }
 
 function onOpen(courseId: string): Promise<void> {
@@ -116,10 +103,6 @@ function onOpen(courseId: string): Promise<void> {
     const opened = await product.open(courseId);
     if (!opened) await reloadCourses();
   });
-}
-
-function onStartCatalog(material: CertifiedCatalogMaterial): Promise<void> {
-  return guard(() => product.startCatalog(material));
 }
 
 function onAnswer(response: QuestionResponse): Promise<void> {
@@ -206,22 +189,19 @@ function onRecheck(): Promise<void> {
       <StudyProductHome
         v-else-if="model.screen === 'home'"
         :courses="courses"
-        :catalog="catalog"
         :busy="model.busy"
         :auth-required="model.authRequired"
         :readiness-message="model.readinessMessage"
         @upload="onUpload"
         @open="onOpen"
-        @catalog="onStartCatalog"
         @recheck="onRecheck"
       />
 
-      <StudyModeSelect
-        v-else-if="model.screen === 'mode_select' && snapshot"
-        :source-title="snapshot.source.title"
-        :busy="model.busy"
-        @select="onSelectMode"
-      />
+      <!-- mode_select is intentionally transient: uploads immediately select Quick. -->
+      <div v-else-if="model.screen === 'mode_select'" class="study-center">
+        <Spinner size="lg" />
+        <p class="study-center-text">{{ t('study.product.loading') }}</p>
+      </div>
 
       <StudyPreparing
         v-else-if="model.screen === 'preparing' && snapshot"

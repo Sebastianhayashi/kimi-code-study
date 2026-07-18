@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN"><body>
+<h1>重试之前，先判断错误是否会自行消失</h1>
+<section id="learning-objective"><h2>学习目标</h2><p>完成本节后，你能根据响应类型判断是否允许自动重试，并在预算内给出下一次等待时间。</p></section>
+<section id="core-concept"><h2>核心概念</h2><p>重试只适合暂时性失败。若请求本身错误或凭据失效，重复发送不会修复原因，反而会放大流量和故障。</p></section>
+<section id="plain-explanation"><h2>通俗解释</h2><p>把错误先分成“稍后可能恢复”和“必须修改输入或身份”两类。前一类才进入次数与间隔控制，后一类应立即返回给调用方处理。</p></section>
+<section id="source-example"><h2>材料中的例子</h2><p data-evidence="source" data-source-anchor="T-1 重试预算">指南规定只对 429 和 503 自动重试；客户端最多重试 3 次，等待 1 秒、2 秒和 4 秒，并加入随机抖动。</p><p data-evidence="source" data-source-anchor="T-3 不可重试响应">指南明确写明：400 和 401 响应不得自动重试，前者需要修正请求，后者需要更新凭据。</p></section>
+<section id="application-example"><h2>教学示例</h2><p data-evidence="teaching-example">教学示例：服务返回 503 后，客户端等待约 1 秒再试；若随后返回 400，就停止并提示检查字段。这个响应序列用于练习，并非指南记录的事故。</p></section>
+<section id="misconception"><h2>常见误区</h2><p>“服务器错误都可以重试”把范围扩大了。材料只授权 429 和 503；没有列出的状态不能靠模型常识补进允许清单。</p></section>
+<section id="lesson-summary"><h2>本节总结</h2><p>先按状态判断可重试性，再应用三次预算、递增等待和抖动；遇到 400 或 401 时停止重试，转向修正请求或凭据。</p></section>
+<section id="self-check"><h2>自测题</h2><p>请判断第二次 503 后应怎样处理：可以在预算内等待约 2 秒并加入抖动后重试；若状态变成 401，则应停止并更新凭据。</p></section>
+<section id="source-anchors"><h2>材料依据</h2><p>T-1 重试预算：允许状态、次数、间隔与抖动；T-3 不可重试响应：400、401 的停止条件和修复方向。</p></section>
+</body></html>

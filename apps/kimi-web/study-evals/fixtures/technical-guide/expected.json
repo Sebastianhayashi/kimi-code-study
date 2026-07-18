@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "technical-guide",
+  "category": "技术指南",
+  "lessonPath": "lesson.html",
+  "coverageAnchors": ["T-1 重试预算", "T-2 幂等键", "T-3 不可重试响应"],
+  "allowedLessonAnchors": ["T-1 重试预算", "T-3 不可重试响应"],
+  "requiredSourcePhrases": [
+    "客户端最多重试 3 次",
+    "400 和 401 响应不得自动重试"
+  ],
+  "objectiveKeywords": ["重试", "判断"],
+  "forbiddenClaims": ["所有 5xx 响应都必须无限重试"]
+}

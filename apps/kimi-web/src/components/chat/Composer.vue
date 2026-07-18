@@ -10,6 +10,7 @@ import type { FileItem } from './MentionMenu.vue';
 import type { ActivationBadges, ConversationStatus, PermissionMode, QueuedPromptView } from '../../types';
 import type { AppGoal, AppModel, AppSkill, ThinkingLevel } from '../../api/types';
 import {
+  defaultThinkingLevelFor,
   commitLevel,
   effectiveThinkingLevel,
   effortLabel,
@@ -617,7 +618,7 @@ const thinkingSegments = computed(() => segmentsFor(currentModel.value));
 // the model default, which is what the daemon will resolve for the prompt. A
 // level the model doesn't declare highlights no segment but still shows in the
 // suffix.
-const thinkingLevel = computed(() => effectiveThinkingLevel(currentModel.value, props.thinking));
+const thinkingLevel = computed(() => effectiveThinkingLevel(currentModel.value, props.thinking ?? defaultThinkingLevelFor(currentModel.value)));
 const activeThinkingSegment = computed(() => {
   const segs = thinkingSegments.value;
   return segs.includes(thinkingLevel.value) ? thinkingLevel.value : '';

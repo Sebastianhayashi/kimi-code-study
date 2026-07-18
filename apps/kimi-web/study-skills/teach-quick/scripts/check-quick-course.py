@@ -9,6 +9,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lesson_quality import find_repeated_blocks, validate_lesson_html
+
 
 def read_text(path: Path) -> str:
     try:
@@ -62,6 +65,7 @@ def validate_lesson_index(workspace: Path, snapshot: dict, errors: list[str]) ->
         return
 
     seen_paths: set[str] = set()
+    published_documents: dict[str, str] = {}
     published_count = 0
     all_published = True
     for index, lesson in enumerate(lessons, start=1):
@@ -87,8 +91,14 @@ def validate_lesson_index(workspace: Path, snapshot: dict, errors: list[str]) ->
             all_published = False
         elif status == "published":
             published_count += 1
-            if isinstance(path, str) and not (workspace / path).is_file():
-                errors.append(f"lessons/index.json: published lesson is missing: {path}")
+            if isinstance(path, str):
+                lesson_path = workspace / path
+                if not lesson_path.is_file():
+                    errors.append(f"lessons/index.json: published lesson is missing: {path}")
+                elif re.fullmatch(r"lessons/[A-Za-z0-9][A-Za-z0-9._-]*\.html", path):
+                    lesson_source = read_text(lesson_path)
+                    published_documents[path] = lesson_source
+                    errors.extend(validate_lesson_html(lesson_source, path))
         else:
             all_published = False
 
@@ -96,6 +106,10 @@ def validate_lesson_index(workspace: Path, snapshot: dict, errors: list[str]) ->
         errors.append("lessons/index.json: published count does not match STUDY-SNAPSHOT.json")
     if generation.get("status") == "ready" and not all_published:
         errors.append("lessons/index.json: ready generation requires every lesson to be published")
+    errors.extend(
+        f"lessons/index.json: {error}"
+        for error in find_repeated_blocks(published_documents)
+    )
 
 
 def validate(workspace: Path) -> list[str]:
@@ -154,7 +168,7 @@ def validate(workspace: Path) -> list[str]:
     if snapshot.get("schemaVersion") != 1 or snapshot.get("contractRevision") != "kimi-study-foundation-v1":
         errors.append("STUDY-SNAPSHOT.json: unsupported product contract")
     if not isinstance(profile, dict) or profile.get("mode") != "quick" or profile.get("skill") != {
-        "name": "teach-quick", "contractRevision": "teach-quick-v2"
+        "name": "teach-quick", "contractRevision": "teach-quick-v4"
     }:
         errors.append("STUDY-SNAPSHOT.json: quick profile pin is invalid")
     if not isinstance(source, dict) or source.get("revision") != source_revision:
@@ -178,9 +192,27 @@ def validate(workspace: Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", type=Path, default=Path.cwd())
+    parser.add_argument("--lesson", type=Path, help="Validate one candidate lesson before publication")
     args = parser.parse_args()
     workspace = args.workspace.expanduser().resolve()
     errors = validate(workspace)
+    if args.lesson is not None:
+        lesson = args.lesson.expanduser()
+        lesson = lesson.resolve() if lesson.is_absolute() else (workspace / lesson).resolve()
+        try:
+            relative = lesson.relative_to(workspace).as_posix()
+        except ValueError:
+            errors.append("candidate lesson must stay inside the course workspace")
+        else:
+            if not re.fullmatch(
+                r"(?:lessons|\.study-drafts)/[A-Za-z0-9][A-Za-z0-9._-]*\.html",
+                relative,
+            ):
+                errors.append("candidate lesson path is unsafe")
+            elif not lesson.is_file():
+                errors.append(f"candidate lesson is missing: {relative}")
+            else:
+                errors.extend(validate_lesson_html(read_text(lesson), relative))
     if errors:
         print("Quick-course gate failed:", file=sys.stderr)
         for error in errors:

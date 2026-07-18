@@ -45,7 +45,7 @@ export type StudyQuestion = AppQuestionRequest & {
 export interface StudyRuntimeWatchHandlers {
   readonly onQuestion: (question: StudyQuestion) => void;
   readonly onQuestionClosed: (questionId: string) => void;
-  readonly onArtifactChanged: () => void;
+  readonly onArtifactChanged: (reason: 'session_idle' | 'resync') => void;
   readonly onConnectionChange: (connected: boolean) => void;
   readonly onPolicyViolation: (message: string) => void;
 }
@@ -80,6 +80,21 @@ export interface StudyRuntimePort {
   listTutorMessages(courseId: string): Promise<readonly AppMessage[]>;
   /** Request a new plan revision from learner feedback on the visible revision. */
   requestPlanChange(courseId: string, planRevision: string, instruction: string): Promise<void>;
+  /** Revise exactly one published lesson from its current content identity. */
+  requestLessonChange(
+    courseId: string,
+    lessonPath: string,
+    baseRevision: string,
+    instruction: string,
+    operationId: string,
+  ): Promise<void>;
+  /** Regenerate exactly one published lesson from its current content identity. */
+  requestLessonRegeneration(
+    courseId: string,
+    lessonPath: string,
+    baseRevision: string,
+    operationId: string,
+  ): Promise<void>;
 }
 
 export function normalizeStudyQuestion(

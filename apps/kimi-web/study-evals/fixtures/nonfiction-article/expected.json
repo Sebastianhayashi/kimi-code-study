@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "nonfiction-article",
+  "category": "非虚构文章",
+  "lessonPath": "lesson.html",
+  "coverageAnchors": ["A-1 到馆记录", "A-2 同期变化", "A-3 访谈线索"],
+  "allowedLessonAnchors": ["A-1 到馆记录", "A-2 同期变化"],
+  "requiredSourcePhrases": [
+    "日均到馆人数从 420 人增至 510 人",
+    "新公交线路开始运营"
+  ],
+  "objectiveKeywords": ["因果", "证据"],
+  "forbiddenClaims": ["图书馆改造使日均到馆人数增加了 90 人"]
+}

@@ -18,6 +18,9 @@ The brief is a source-grounded publication contract. It prevents a lesson from i
 ## Primary capability slice
 {One observable move the learner will understand or perform. Do not join adjacent slices.}
 
+## Learning objective
+{One learner-facing, observable capability that the self-check can actually test.}
+
 ## Source anchors
 - {source file, chapter, page or stable location, and source unit ID}
 - {additional exact location needed for the case or boundary}
@@ -27,6 +30,9 @@ The brief is a source-grounded publication contract. It prevents a lesson from i
 
 ## Core concept
 {The concept in the author's sense, including enough surrounding logic to avoid a slogan.}
+
+## Plain explanation
+{The difficult reasoning step rewritten in natural Chinese and explained progressively. Do not translate the source sentence by sentence.}
 
 ## Original source case
 {At least one complete case from the book. Name the actors, situation, decision, and outcome. A quotation or case name is not enough.}
@@ -45,6 +51,9 @@ The brief is a source-grounded publication contract. It prevents a lesson from i
 ## Boundary or misconception
 {A plausible misuse, overgeneralization, counterexample, or condition under which the concept changes.}
 
+## Lesson summary
+{The compact reasoning chain or decision rule the learner should retain. Do not write a generic recap.}
+
 ## Practice and feedback
 - Task:
 - Observable response:
@@ -61,6 +70,7 @@ The brief is a source-grounded publication contract. It prevents a lesson from i
 - [ ] I reopened and reread every source anchor above.
 - [ ] Every named RIA unit is verified, pressure-tested, and represented without losing its boundary.
 - [ ] The lesson teaches only the primary capability slice.
+- [ ] The learning objective is observable and the self-check directly tests it.
 - [ ] The original case retains the complete reasoning chain.
 - [ ] The transfer example is tied to the current mission.
 - [ ] Practice includes evaluation criteria and immediate feedback.
@@ -72,15 +82,24 @@ If the time budget cannot hold this brief, split the slice or create a continuat
 
 The matching HTML must include visible sections for every part of the contract:
 
+- `id="learning-objective"`
 - `id="core-concept"`
+- `id="plain-explanation"`
 - `id="ria-connection"`
 - `id="original-case"`
 - `id="reasoning-chain"`
 - `id="transfer-example"`
 - `id="boundary-misconception"`
+- `id="lesson-summary"`
 - `id="practice-feedback"`
 - `id="retrieval-connection"`
 - `id="explicit-exclusions"`
 - `id="source-anchors"`
 
 These IDs let the structural check verify that the brief reached the lesson. They do not replace the final semantic comparison against the reopened source.
+
+Source-grounded HTML blocks also use `data-evidence="source"` with an exact
+`data-source-anchor`; invented Mission transfers use
+`data-evidence="teaching-example"`. Follow
+[LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md) for the complete Chinese
+writing and evidence-labelling contract.
