@@ -7,6 +7,7 @@
 import { computed, defineAsyncComponent, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppearance } from '../composables/client/useAppearance';
+import { initServerAuth } from '../api/daemon/serverAuth';
 import Button from '../components/ui/Button.vue';
 import Icon from '../components/ui/Icon.vue';
 import Spinner from '../components/ui/Spinner.vue';
@@ -18,6 +19,10 @@ import {
   type QuestionResponse,
   type StudyCourseBinding,
 } from './foundation';
+
+// Hydrate the server-transport credential (#token fragment or localStorage)
+// before the facade's first REST/WS call, mirroring the chat client's boot.
+initServerAuth();
 import StudyProductHome from './components/product/StudyProductHome.vue';
 import StudyModeSelect from './components/product/StudyModeSelect.vue';
 import StudyPreparing from './components/product/StudyPreparing.vue';
