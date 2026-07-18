@@ -43,6 +43,8 @@ export type { LessonSource, LessonStatus } from './domain/lessonDocument';
 export type { TutorExchange } from './domain/tutorThread';
 
 export type {
+  StudyPlanChangeState,
+  StudyPlanChangeStatus,
   StudyProductStage,
   StudyProductView,
 } from './product/studyProductController';

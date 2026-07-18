@@ -32,6 +32,13 @@ import { normalizeStudyQuestion } from '../src/study/runtime/studyRuntime';
 
 const NOW = '2026-07-17T00:00:00.000Z';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
 class MemoryStorage implements StudyStorage {
   readonly values = new Map<string, string>();
   getItem(key: string): string | null { return this.values.get(key) ?? null; }
@@ -65,6 +72,22 @@ class FakeRuntime implements StudyRuntimePort {
   watchDelay: Promise<void> | undefined;
   answerDelay: Promise<void> | undefined;
   generateError: Error | undefined;
+  generateDelay: Promise<void> | undefined;
+  readonly generateCalls: Array<{
+    readonly courseId: string;
+    readonly planRevision: string;
+  }> = [];
+  planChangeImpl:
+    | ((courseId: string, planRevision: string, instruction: string) => Promise<void>)
+    | undefined;
+  readonly planChangeCalls: Array<{
+    readonly courseId: string;
+    readonly planRevision: string;
+    readonly instruction: string;
+  }> = [];
+  loadSnapshotImpl:
+    | ((courseId: string) => Promise<StudyRuntimeSnapshotLoad>)
+    | undefined;
   uploadImpl: (() => Promise<{ fileId: string; name: string; mediaType: string; size: number; sourceRevision: string }>) | undefined;
   startImpl: ((input: StartCourseInput) => Promise<StudyCourseBinding>) | undefined;
   uploaded = {
@@ -97,6 +120,7 @@ class FakeRuntime implements StudyRuntimePort {
   }
   async loadSnapshot(courseId: string): Promise<StudyRuntimeSnapshotLoad> {
     this.loadCalls.push(courseId);
+    if (this.loadSnapshotImpl !== undefined) return this.loadSnapshotImpl(courseId);
     const snapshot = this.snapshots.get(courseId);
     return snapshot === undefined ? { status: 'missing' } : { status: 'ready', snapshot };
   }
@@ -113,7 +137,9 @@ class FakeRuntime implements StudyRuntimePort {
     if (this.answerDelay !== undefined) await this.answerDelay;
   }
   async dismissQuestion(): Promise<void> {}
-  async requestGeneration(): Promise<void> {
+  async requestGeneration(courseId: string, planRevision: string): Promise<void> {
+    this.generateCalls.push({ courseId, planRevision });
+    if (this.generateDelay !== undefined) await this.generateDelay;
     if (this.generateError !== undefined) throw this.generateError;
   }
   async readCourseText(): Promise<StudyTextLoad> { return { status: 'missing' }; }
@@ -121,7 +147,16 @@ class FakeRuntime implements StudyRuntimePort {
   async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> { return []; }
   async sendTutorMessage(): Promise<void> {}
   async listTutorMessages(): Promise<readonly AppMessage[]> { return []; }
-  async requestPlanChange(): Promise<void> {}
+  async requestPlanChange(
+    courseId: string,
+    planRevision: string,
+    instruction: string,
+  ): Promise<void> {
+    this.planChangeCalls.push({ courseId, planRevision, instruction });
+    if (this.planChangeImpl !== undefined) {
+      await this.planChangeImpl(courseId, planRevision, instruction);
+    }
+  }
 }
 
 describe('StudyCourseRegistry', () => {
@@ -321,6 +356,39 @@ describe('KimiStudyRuntime pagination', () => {
     )).resolves.toMatchObject({ id: 'message-1' });
     expect(listMessages).toHaveBeenCalledTimes(2);
   });
+
+  it('coalesces and persists the same plan-edit operation id', async () => {
+    const gate = deferred<{ promptId: string; userMessageId: string }>();
+    const listMessages: KimiWebApi['listMessages'] = vi.fn(async () => ({
+      items: [],
+      hasMore: false,
+    }));
+    const submitPrompt: KimiWebApi['submitPrompt'] = vi.fn(() => gate.promise);
+    const runtime = runtimeWith({ listMessages, submitPrompt }, true);
+
+    const first = runtime.requestPlanChange(
+      'course-12345678',
+      'plan-v1',
+      '缩减为六节课',
+    );
+    const duplicate = runtime.requestPlanChange(
+      'course-12345678',
+      'plan-v1',
+      '缩减为六节课',
+    );
+    await vi.waitFor(() => { expect(submitPrompt).toHaveBeenCalledTimes(1); });
+    gate.resolve({ promptId: 'prompt-plan-edit-1', userMessageId: 'message-plan-edit-1' });
+    await Promise.all([first, duplicate]);
+
+    await runtime.requestPlanChange('course-12345678', 'plan-v1', '缩减为六节课');
+    expect(submitPrompt).toHaveBeenCalledTimes(1);
+    expect(submitPrompt).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      metadata: expect.objectContaining({
+        kimiStudyCourseId: 'course-12345678',
+        kimiStudyPlanRevision: 'plan-v1',
+      }),
+    }));
+  });
 });
 
 describe('StudyProductController', () => {
@@ -395,13 +463,6 @@ describe('generation revision gate', () => {
 });
 
 describe('StudyProductController concurrency guards', () => {
-  function deferred<T>() {
-    let resolve!: (value: T) => void;
-    let reject!: (reason?: unknown) => void;
-    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
-    return { promise, resolve, reject };
-  }
-
   function quickSnapshot(courseId: string): CourseSnapshot {
     const draft = createUploadCourse(courseId, {
       fileId: 'file-1',
@@ -411,6 +472,41 @@ describe('StudyProductController concurrency guards', () => {
       sourceRevision: 'file:file-1',
     }, NOW);
     return applyCourseEvent(draft, { type: 'mode_selected', mode: 'quick' }, NOW);
+  }
+
+  function readySnapshot(courseId: string, planRevision = 'plan-v1'): CourseSnapshot {
+    let ready = quickSnapshot(courseId);
+    ready = applyCourseEvent(ready, {
+      type: 'source_updated',
+      source: {
+        ...ready.source,
+        status: 'ready',
+        evidenceLevel: 'survey',
+        quickSurveyRevision: 'survey-v1',
+      },
+      approval: {
+        actor: 'auto_policy',
+        policyRevision: 'auto-v1',
+        approvedRevision: 'survey-v1',
+        approvedAt: NOW,
+      },
+    }, NOW);
+    ready = applyCourseEvent(ready, {
+      type: 'mission_updated',
+      mission: { status: 'ready', revision: 1, questionsAsked: 1, summary: '通过考试。' },
+    }, NOW);
+    return applyCourseEvent(ready, {
+      type: 'plan_updated',
+      plan: {
+        status: 'ready',
+        revision: planRevision,
+        basedOnSourceRevision: ready.source.revision,
+        basedOnMissionRevision: ready.mission.revision,
+        chapterCount: 3,
+        pageCount: 6,
+        quizCount: 1,
+      },
+    }, NOW);
   }
 
   function readyQuestion(questionId: string): StudyQuestion {
@@ -501,6 +597,144 @@ describe('StudyProductController concurrency guards', () => {
     expect(runtime.loadCalls.at(-1)).toBe('course-b');
   });
 
+  it('keeps the newest snapshot when an older same-course read resolves late', async () => {
+    const runtime = new FakeRuntime();
+    const original = readySnapshot('course-12345678');
+    const revised = applyCourseEvent(original, {
+      type: 'plan_updated',
+      plan: {
+        ...original.plan,
+        revision: 'plan-v2',
+        chapterCount: 4,
+      },
+    }, NOW);
+    runtime.snapshots.set('course-12345678', original);
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    const older = deferred<StudyRuntimeSnapshotLoad>();
+    const newer = deferred<StudyRuntimeSnapshotLoad>();
+    let reads = 0;
+    runtime.loadSnapshotImpl = async () => {
+      reads += 1;
+      return reads === 1 ? older.promise : newer.promise;
+    };
+    const slowRefresh = controller.refresh();
+    const fastRefresh = controller.refresh();
+    newer.resolve({ status: 'ready', snapshot: revised });
+    await fastRefresh;
+    older.resolve({ status: 'ready', snapshot: original });
+    await slowRefresh;
+
+    expect(controller.view.snapshot?.plan.revision).toBe('plan-v2');
+    expect(controller.view.snapshot?.plan.chapterCount).toBe(4);
+  });
+
+  it('coalesces duplicate outline changes and waits for a new authoritative revision', async () => {
+    const runtime = new FakeRuntime();
+    const original = readySnapshot('course-12345678');
+    runtime.snapshots.set('course-12345678', original);
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    const gate = deferred<void>();
+    runtime.planChangeImpl = async () => gate.promise;
+    const first = controller.requestPlanChange('缩减为六节课');
+    const duplicate = controller.requestPlanChange('  缩减为六节课  ');
+    await vi.waitFor(() => {
+      expect(runtime.planChangeCalls).toHaveLength(1);
+      expect(controller.view.planChange.status).toBe('submitting');
+    });
+    await expect(controller.requestPlanChange('先讲案例再讲原理'))
+      .rejects.toThrow('still in progress');
+    gate.resolve(undefined);
+    await Promise.all([first, duplicate]);
+    expect(controller.view.planChange).toEqual({
+      status: 'waiting',
+      baseRevision: 'plan-v1',
+    });
+
+    const revised = applyCourseEvent(original, {
+      type: 'plan_updated',
+      plan: {
+        ...original.plan,
+        revision: 'plan-v2',
+        pageCount: 5,
+      },
+    }, NOW);
+    runtime.snapshots.set('course-12345678', revised);
+    runtime.handlers?.onArtifactChanged();
+    await vi.waitFor(() => { expect(controller.view.planChange.status).toBe('succeeded'); });
+
+    expect(controller.view.planChange).toEqual({
+      status: 'succeeded',
+      baseRevision: 'plan-v1',
+      resultRevision: 'plan-v2',
+    });
+    expect(controller.view.snapshot?.plan.revision).toBe('plan-v2');
+    expect(runtime.startCalls).toHaveLength(0);
+  });
+
+  it('keeps the last valid outline on failure and allows an exact retry', async () => {
+    const runtime = new FakeRuntime();
+    const original = readySnapshot('course-12345678');
+    runtime.snapshots.set('course-12345678', original);
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+    const before = controller.view.snapshot;
+
+    runtime.planChangeImpl = async () => { throw new Error('submit unavailable'); };
+    await expect(controller.requestPlanChange('面向零基础读者'))
+      .rejects.toThrow('submit unavailable');
+    expect(controller.view.planChange.status).toBe('failed');
+    expect(controller.view.snapshot).toBe(before);
+
+    runtime.planChangeImpl = async () => {};
+    await controller.requestPlanChange('面向零基础读者');
+    expect(runtime.planChangeCalls).toHaveLength(2);
+    expect(controller.view.planChange.status).toBe('waiting');
+
+    // A real session-idle event without a new ready revision is a recoverable
+    // failure, not permission to discard the previous outline.
+    runtime.handlers?.onArtifactChanged();
+    await vi.waitFor(() => { expect(controller.view.planChange.status).toBe('failed'); });
+    expect(controller.view.snapshot?.plan.revision).toBe('plan-v1');
+    expect(controller.view.stage).toBe('working');
+  });
+
+  it('keeps the last valid outline when the completed edit leaves no snapshot', async () => {
+    const runtime = new FakeRuntime();
+    const original = readySnapshot('course-12345678');
+    runtime.snapshots.set('course-12345678', original);
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    runtime.planChangeImpl = async () => {};
+    await controller.requestPlanChange('把风险分析移到最前面');
+    runtime.loadSnapshotImpl = async () => ({ status: 'missing' });
+    runtime.handlers?.onArtifactChanged();
+    await vi.waitFor(() => { expect(controller.view.planChange.status).toBe('failed'); });
+
+    expect(controller.view.snapshot).toBe(original);
+    expect(controller.view.stage).toBe('working');
+    expect(controller.view.issues).toEqual([]);
+  });
+
+  it('rejects an empty outline instruction before calling the runtime', async () => {
+    const runtime = new FakeRuntime();
+    runtime.snapshots.set('course-12345678', readySnapshot('course-12345678'));
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    await expect(controller.requestPlanChange('   ')).rejects.toThrow('empty');
+    expect(runtime.planChangeCalls).toHaveLength(0);
+  });
+
   it('keeps a newer question that arrived while an answer was in flight', async () => {
     const runtime = new FakeRuntime();
     const controller = makeController(runtime);
@@ -574,6 +808,26 @@ describe('StudyProductController concurrency guards', () => {
     expect(controller.view.stage).toBe('error');
     expect(controller.view.issues[0]?.code).toBe('generation_submit_failed');
     expect(controller.view.snapshot?.generation.status).not.toBe('generating');
+  });
+
+  it('confirms one plan revision only once when generation is double-clicked', async () => {
+    const runtime = new FakeRuntime();
+    runtime.snapshots.set('course-12345678', readySnapshot('course-12345678'));
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    const gate = deferred<void>();
+    runtime.generateDelay = gate.promise;
+    const first = controller.generate();
+    const duplicate = controller.generate();
+    await duplicate;
+    expect(runtime.generateCalls).toEqual([{
+      courseId: 'course-12345678',
+      planRevision: 'plan-v1',
+    }]);
+    gate.resolve(undefined);
+    await first;
   });
 
   it('refreshes the authoritative snapshot after upgrade without a watcher event', async () => {
