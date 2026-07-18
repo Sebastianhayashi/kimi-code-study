@@ -87,6 +87,20 @@ Do not design the course until both the survey revision and Mission revision are
 
 After the plan passes `python3 scripts/check-quick-course.py --workspace /absolute/workspace`, set plan status `ready` in the snapshot. Stop and return control to Kimi Study so the learner can see the outline before generation.
 
+### 4a. Revise the visible outline on request
+
+When Kimi Study sends a learner instruction naming the exact current plan revision:
+
+- reopen the current survey, Mission, plan, and snapshot; reject the request if the named revision is stale;
+- interpret ordinary Chinese requests about the audience, emphasis, lesson count, or teaching order without asking the learner to edit internal files;
+- revise only this course's plan; do not create another course, restart source surveying, or begin lesson generation;
+- give the candidate a new stable plan revision and keep its source and Mission pins exact;
+- keep the last ready `QUICK-PLAN.md` and snapshot authoritative while drafting and checking the candidate;
+- replace `source/QUICK-PLAN.md` and its snapshot plan fields only after every plan integrity check passes; if revision fails, leave both authoritative artifacts unchanged and report the failure;
+- stop and return control after publishing the new ready revision so Kimi Study can show it for learner confirmation.
+
+Changing the outline does not authorize inventing unsupported source content or silently changing the learner's Mission. If the request conflicts with the source or Mission, retain the current revision and explain the conflict in learner-facing Chinese.
+
 ### 5. Generate on request
 
 Only generate when the request names the exact current plan revision. Ignore or reject stale generation requests.

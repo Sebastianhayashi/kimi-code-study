@@ -125,6 +125,20 @@ class QuickGateTest(unittest.TestCase):
     def test_valid_quick_course_passes(self) -> None:
         self.assertEqual(CHECKER.validate(self.workspace), [])
 
+    def test_revised_plan_and_snapshot_must_publish_the_same_revision(self) -> None:
+        plan_path = self.workspace / "source/QUICK-PLAN.md"
+        plan_path.write_text(
+            plan_path.read_text(encoding="utf-8").replace("plan-v1", "plan-v2"),
+            encoding="utf-8",
+        )
+
+        errors = CHECKER.validate(self.workspace)
+        self.assertTrue(any("plan revision is not ready" in error for error in errors))
+
+        self.snapshot["plan"]["revision"] = "plan-v2"
+        self._write_snapshot()
+        self.assertEqual(CHECKER.validate(self.workspace), [])
+
     def test_deep_claim_in_quick_snapshot_fails(self) -> None:
         self.snapshot["source"]["reading"] = {"coveragePercent": 100, "blockedRanges": []}
         self._write_snapshot()
