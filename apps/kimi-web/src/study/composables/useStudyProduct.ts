@@ -51,7 +51,10 @@ export function useStudyProduct(options: UseStudyProductOptions = {}) {
     // exact StudyProductView shape (readonly() would deep-freeze nested
     // mutable arrays and break assignability).
     view: computed(() => current.value),
-    isBusy: computed(() => ['uploading', 'starting'].includes(current.value.stage)),
+    isBusy: computed(() =>
+      ['uploading', 'starting'].includes(current.value.stage)
+      || current.value.planChange.status === 'submitting'
+      || current.value.planChange.status === 'waiting'),
     upload: controller.upload.bind(controller),
     selectMode: controller.selectMode.bind(controller),
     startCatalog: controller.startCatalog.bind(controller),

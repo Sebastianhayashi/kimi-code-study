@@ -81,6 +81,7 @@ function view(patch: Partial<StudyProductView>): StudyProductView {
     readiness: READY,
     connected: true,
     issues: [],
+    planChange: { status: 'idle' },
     ...patch,
   };
 }
@@ -111,6 +112,16 @@ describe('deriveStudyScreen', () => {
   it('keeps uploading on the home screen while busy', () => {
     const model = deriveStudyScreen(view({ stage: 'uploading' }));
     expect(model.screen).toBe('home');
+    expect(model.busy).toBe(true);
+  });
+
+  it('keeps the outline busy until an authoritative revised plan arrives', () => {
+    const model = deriveStudyScreen(view({
+      stage: 'working',
+      snapshot: readySnapshot(),
+      planChange: { status: 'waiting', baseRevision: 'plan-v1' },
+    }));
+    expect(model.screen).toBe('outline');
     expect(model.busy).toBe(true);
   });
 
