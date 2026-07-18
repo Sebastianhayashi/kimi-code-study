@@ -35,6 +35,7 @@ import { registerSessionsRoutes } from './sessions';
 import { registerShutdownRoutes } from './shutdown';
 import { registerSnapshotRoutes } from './snapshot';
 import { registerSkillsRoutes } from './skills';
+import { registerStudyCatalogRoutes } from './studyCatalog';
 import { registerTasksRoutes } from './tasks';
 import { registerTerminalsRoutes } from './terminals';
 import { registerToolsRoutes } from './tools';
@@ -133,6 +134,10 @@ export async function registerApiV1Routes(
         core,
       );
       registerFilesRoutes(apiV1 as unknown as Parameters<typeof registerFilesRoutes>[0], core);
+      registerStudyCatalogRoutes(
+        apiV1 as unknown as Parameters<typeof registerStudyCatalogRoutes>[0],
+        core,
+      );
       registerFsRoutes(apiV1 as unknown as Parameters<typeof registerFsRoutes>[0], core);
       registerGuiStoreRoutes(apiV1 as unknown as Parameters<typeof registerGuiStoreRoutes>[0], opts.guiStore);
       registerToolsRoutes(apiV1 as unknown as Parameters<typeof registerToolsRoutes>[0], core);
