@@ -14,7 +14,7 @@ assert SPEC and SPEC.loader
 SPEC.loader.exec_module(INSTALLER)
 
 
-def write_minimal_skill(root: Path, name: str = "teach-quick", revision: str = "teach-quick-v2") -> Path:
+def write_minimal_skill(root: Path, name: str = "teach-quick", revision: str = "teach-quick-v3") -> Path:
     skill = root / name
     skill.mkdir(parents=True)
     (skill / "CONTRACT.json").write_text(
@@ -111,7 +111,7 @@ class SkillInstallerTest(unittest.TestCase):
         self.assertEqual(INSTALLER.tree_digest(self.target), original_digest)
 
     def test_recursive_skill_md_scan_only_current_skill(self) -> None:
-        write_minimal_skill(self.destination, "teach-quick", "teach-quick-v2")
+        write_minimal_skill(self.destination, "teach-quick", "teach-quick-v3")
         # Simulate old installer pollution — must not be recreated by new installer,
         # and a destination scan after clean install must not see backups.
         pollution = self.destination / ".teach-quick.backup-deadbeef"
@@ -122,7 +122,7 @@ class SkillInstallerTest(unittest.TestCase):
         )
         # Clean install with replace from a proper source should not create new
         # backups under destination; remove pollution as operators should.
-        source = write_minimal_skill(self.root / "src2", "teach-quick", "teach-quick-v2")
+        source = write_minimal_skill(self.root / "src2", "teach-quick", "teach-quick-v3")
         # First remove pollution (operator step) then install
         shutil_rm = __import__("shutil").rmtree
         shutil_rm(pollution)
@@ -130,7 +130,7 @@ class SkillInstallerTest(unittest.TestCase):
         found = INSTALLER.discover_skill_md_paths(self.destination)
         self.assertEqual(found, [self.target / "SKILL.md"])
         text = found[0].read_text(encoding="utf-8")
-        self.assertIn("[contract:teach-quick-v2]", text)
+        self.assertIn("[contract:teach-quick-v3]", text)
         self.assertNotIn("[contract:teach-quick-v1]", text)
 
     def test_explicit_backup_dir_outside_destination_kept(self) -> None:
@@ -161,7 +161,7 @@ class SkillInstallerTest(unittest.TestCase):
             )
 
     def test_install_replace_check_idempotent_loop(self) -> None:
-        source = write_minimal_skill(self.root / "pack", "teach-quick", "teach-quick-v2")
+        source = write_minimal_skill(self.root / "pack", "teach-quick", "teach-quick-v3")
         target = self.destination / "teach-quick"
         for _ in range(3):
             result = INSTALLER.install_skill(source, target, True)

@@ -11,29 +11,38 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lesson_quality import find_repeated_blocks, validate_lesson_html
+
 
 PLACEHOLDER = re.compile(r"\{[^}]*\}|\b(?:TBD|TODO)\b", re.IGNORECASE)
 BRIEF_SECTIONS = (
     "Primary capability slice",
+    "Learning objective",
     "Source anchors",
     "RIA grounding",
     "Core concept",
+    "Plain explanation",
     "Original source case",
     "Reasoning chain",
     "Transfer example",
     "Boundary or misconception",
+    "Lesson summary",
     "Practice and feedback",
     "Retrieval connection",
     "Explicit exclusions",
     "Publication check",
 )
 HTML_SECTIONS = (
+    "learning-objective",
     "core-concept",
+    "plain-explanation",
     "ria-connection",
     "original-case",
     "reasoning-chain",
     "transfer-example",
     "boundary-misconception",
+    "lesson-summary",
     "practice-feedback",
     "retrieval-connection",
     "explicit-exclusions",
@@ -562,7 +571,7 @@ def validate_brief(
         if not non_placeholder(field(practice, label)):
             errors.append(f"{brief}: Practice and feedback is missing {label}")
 
-    checked_audit(source, "Publication check", 7, errors)
+    checked_audit(source, "Publication check", 9, errors)
 
     if lesson_value:
         lesson_path = resolve_workspace_path(workspace, lesson_value)
@@ -669,6 +678,7 @@ def validate_lesson_index(workspace: Path, generation: dict, errors: list[str]) 
         return
 
     seen_paths: set[str] = set()
+    published_documents: dict[str, str] = {}
     published_count = 0
     all_published = True
     for index, lesson in enumerate(lessons, start=1):
@@ -694,8 +704,14 @@ def validate_lesson_index(workspace: Path, generation: dict, errors: list[str]) 
             all_published = False
         elif status == "published":
             published_count += 1
-            if isinstance(path, str) and not (workspace / path).is_file():
-                errors.append(f"lessons/index.json: published lesson is missing: {path}")
+            if isinstance(path, str):
+                lesson_path = workspace / path
+                if not lesson_path.is_file():
+                    errors.append(f"lessons/index.json: published lesson is missing: {path}")
+                elif re.fullmatch(r"lessons/[A-Za-z0-9][A-Za-z0-9._-]*\.html", path):
+                    lesson_source = read_text(lesson_path)
+                    published_documents[path] = lesson_source
+                    errors.extend(validate_lesson_html(lesson_source, path))
         else:
             all_published = False
 
@@ -703,6 +719,10 @@ def validate_lesson_index(workspace: Path, generation: dict, errors: list[str]) 
         errors.append("lessons/index.json: published count does not match STUDY-SNAPSHOT.json")
     if generation.get("status") == "ready" and not all_published:
         errors.append("lessons/index.json: ready generation requires every lesson to be published")
+    errors.extend(
+        f"lessons/index.json: {error}"
+        for error in find_repeated_blocks(published_documents)
+    )
 
 
 def validate_study_snapshot(workspace: Path, errors: list[str]) -> None:
@@ -734,7 +754,7 @@ def validate_study_snapshot(workspace: Path, errors: list[str]) -> None:
     mode = profile.get("mode")
     if mode not in {"deep", "deep_preprocessed"}:
         errors.append("STUDY-SNAPSHOT.json: deep profile mode is invalid")
-    if profile.get("skill") != {"name": "teach-ria", "contractRevision": "teach-ria-v2"}:
+    if profile.get("skill") != {"name": "teach-ria", "contractRevision": "teach-ria-v3"}:
         errors.append("STUDY-SNAPSHOT.json: teach-ria Skill pin is invalid")
     if profile.get("sourceRevision") != source.get("revision"):
         errors.append("STUDY-SNAPSHOT.json: profile and source revisions differ")

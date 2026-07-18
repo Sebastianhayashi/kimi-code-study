@@ -11,7 +11,7 @@ Required identity:
   "courseId": "course-from-activation-args",
   "profile": {
     "mode": "quick",
-    "skill": { "name": "teach-quick", "contractRevision": "teach-quick-v2" },
+    "skill": { "name": "teach-quick", "contractRevision": "teach-quick-v3" },
     "sourceRevision": "exact-source-revision",
     "selectedBy": "user"
   }

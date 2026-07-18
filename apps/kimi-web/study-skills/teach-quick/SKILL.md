@@ -1,6 +1,6 @@
 ---
 name: teach-quick
-description: "[contract:teach-quick-v2] Survey an uploaded learning source end to end, clarify the learner's Mission with at most one question, and build the fastest honest course path. Use for Kimi Study quick mode when the learner is still deciding how deeply to study a book, document, transcript, or mixed set of learning materials."
+description: "[contract:teach-quick-v3] Survey an uploaded learning source end to end, clarify the learner's Mission with at most one question, and build the fastest honest Chinese course path. Use for Kimi Study quick mode when the learner is still deciding how deeply to study a book, document, transcript, or mixed set of learning materials."
 ---
 
 # Teach Quick
@@ -23,7 +23,7 @@ Maintain these artifacts as they become relevant:
 - `source/QUICK-SURVEY.md`: traceable survey of the entire supplied material. Follow [QUICK-SURVEY-FORMAT.md](./QUICK-SURVEY-FORMAT.md).
 - `source/QUICK-PLAN.md`: mission-bound outline. Follow [QUICK-PLAN-FORMAT.md](./QUICK-PLAN-FORMAT.md).
 - `MISSION.md`: concrete learner outcome. Follow [MISSION-FORMAT.md](./MISSION-FORMAT.md).
-- `lessons/*.html`: short numbered lessons published incrementally.
+- `lessons/*.html`: short numbered lessons published incrementally. Follow [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md).
 - `lessons/index.json`: versioned lesson title/order/publication manifest. Follow [LESSON-INDEX-FORMAT.md](./LESSON-INDEX-FORMAT.md).
 - `reference/*.html`: durable quick-reference artifacts.
 - `learning-records/*.md`: evidence-backed changes in understanding. Follow [LEARNING-RECORD-FORMAT.md](./LEARNING-RECORD-FORMAT.md).
@@ -71,7 +71,7 @@ Never write `actor=user` unless the learner actually performed an explicit exper
 
 ### 1. Initialize
 
-Create or update `source/STUDY-SNAPSHOT.json` with mode `quick`, Skill pin `teach-quick-v2`, source status `surveying`, Mission status `not_started` or `interviewing`, and plan/generation status `not_started`.
+Create or update `source/STUDY-SNAPSHOT.json` with mode `quick`, Skill pin `teach-quick-v3`, source status `surveying`, Mission status `not_started` or `interviewing`, and plan/generation status `not_started`.
 
 ### 2. Survey the source
 
@@ -107,15 +107,21 @@ Only generate when the request names the exact current plan revision. Ignore or 
 
 Publish lessons incrementally as `lessons/NNNN-dash-case-name.html`. After validating each lesson, update `lessons/index.json` first, then set `publishedLessons` in the snapshot to the manifest's published count and set generation status `partially_ready`. Set it to `ready` only when every indexed lesson is published and every planned reference destination exists.
 
+Before authoring the first lesson, read [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md). Write learner-facing content in natural Chinese. The visible learning moves are obligations, not a mechanical template: spend space on the source's actual difficulty and omit unsupported detail instead of padding every section.
+
 Each lesson must:
 
 - teach one tightly scoped move tied to the Mission;
 - cite stable locations in the supplied source;
+- label source-grounded blocks with their exact anchors and label invented teaching transfers separately;
+- state one observable learning objective, explain the hard step progressively, and end with an aligned self-check plus immediate answer logic;
 - distinguish source claims from external corrections;
 - include a retrieval or practice loop with immediate feedback;
 - preserve important cases and boundaries instead of reducing them to slogans;
 - link to relevant lessons and reference artifacts;
 - invite follow-up questions from the tutor.
+
+Before publication, run `python3 scripts/check-quick-course.py --workspace /absolute/workspace --lesson lessons/NNNN-name.html`. After the lesson index and snapshot advance, run the full checker again so cross-lesson repetition and publication counts are checked. A structural pass never replaces reopening and semantically comparing every source anchor.
 
 Use high-trust external sources only to correct, update, or clarify the uploaded material. Never replace missing source content with parametric guesses.
 

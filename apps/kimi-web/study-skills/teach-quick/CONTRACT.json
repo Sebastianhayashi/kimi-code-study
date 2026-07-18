@@ -1,6 +1,6 @@
 {
   "name": "teach-quick",
-  "contractRevision": "teach-quick-v2",
+  "contractRevision": "teach-quick-v3",
   "productContractRevision": "kimi-study-foundation-v1",
   "upstream": {
     "repository": "https://github.com/mattpocock/skills",

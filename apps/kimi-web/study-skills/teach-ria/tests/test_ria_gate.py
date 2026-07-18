@@ -14,6 +14,22 @@ assert SPEC and SPEC.loader
 SPEC.loader.exec_module(CHECKER)
 
 
+def quality_lesson_html(anchor: str = "测试材料 §1") -> str:
+    return f"""<!doctype html>
+<html lang="zh-CN"><body>
+<h1>根据证据完成一次判断</h1>
+<section id="learning-objective"><h2>学习目标</h2><p>完成本节后，你能依据材料中的信号和限制条件作出判断，并用一条完整推理链说明选择。</p></section>
+<section id="core-concept"><h2>核心概念</h2><p>可靠判断要把可观察信号、适用条件和允许动作连接起来，不能只记住脱离边界的一句结论。</p></section>
+<section id="plain-explanation"><h2>通俗解释</h2><p>先描述事实，再核对材料给出的条件，最后选择动作；任何一步缺少依据，都应该停下补证据。</p></section>
+<section id="source-example"><h2>材料中的例子</h2><p data-evidence="source" data-source-anchor="{anchor}">材料中说明：出现测试信号后，应先核对限制条件，再决定继续、等待或停止，不能跳过条件直接行动。</p></section>
+<section id="application-example"><h2>教学示例</h2><p data-evidence="teaching-example">教学示例：把新情境代入“信号—条件—动作”三步法。这个情境用于练习，不是材料中的真实案例。</p></section>
+<section id="misconception"><h2>常见误区</h2><p>凭经验看到信号就行动会忽略边界；当条件变化时，相同信号可能对应不同处理方式。</p></section>
+<section id="lesson-summary"><h2>本节总结</h2><p>记住这条规则：描述信号，核对条件，再采取材料允许的动作；没有依据时明确暂停。</p></section>
+<section id="self-check"><h2>自测题</h2><p>请判断只有信号时能否行动。答案是不能；合格回答要指出缺少的条件以及下一步核对位置。</p></section>
+<section id="source-anchors"><h2>材料依据</h2><p>{anchor}：本节关于信号、条件和动作顺序的直接依据，发布前已重新核对。</p></section>
+</body></html>"""
+
+
 class RiaGateTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -190,7 +206,7 @@ class StudySnapshotTest(unittest.TestCase):
             "courseId": "course-12345678",
             "profile": {
                 "mode": "deep",
-                "skill": {"name": "teach-ria", "contractRevision": "teach-ria-v2"},
+                "skill": {"name": "teach-ria", "contractRevision": "teach-ria-v3"},
                 "sourceRevision": "file:file-1",
                 "selectedBy": "user",
             },
@@ -245,7 +261,7 @@ class StudySnapshotTest(unittest.TestCase):
     def _publish_lesson_index(self, *, status: str = "partially_ready") -> None:
         lessons = self.workspace / "lessons"
         lessons.mkdir(exist_ok=True)
-        (lessons / "0001-first.html").write_text("<h1>First lesson</h1>", encoding="utf-8")
+        (lessons / "0001-first.html").write_text(quality_lesson_html(), encoding="utf-8")
         (lessons / "index.json").write_text(
             json.dumps(
                 {
@@ -255,7 +271,7 @@ class StudySnapshotTest(unittest.TestCase):
                         {
                             "order": 1,
                             "path": "lessons/0001-first.html",
-                            "title": "First lesson",
+                            "title": "根据证据完成一次判断",
                             "status": "published",
                         }
                     ],
@@ -287,6 +303,24 @@ class StudySnapshotTest(unittest.TestCase):
         errors: list[str] = []
         CHECKER.validate_study_snapshot(self.workspace, errors)
         self.assertEqual(errors, [])
+
+    def test_published_lesson_must_pass_chinese_grounding_gate(self) -> None:
+        self._publish_lesson_index()
+        (self.workspace / "lessons/0001-first.html").write_text(
+            "<html><body><h1>Generic lesson</h1></body></html>",
+            encoding="utf-8",
+        )
+        errors: list[str] = []
+        CHECKER.validate_study_snapshot(self.workspace, errors)
+        self.assertTrue(any("html language must be zh-CN" in error for error in errors))
+        self.assertTrue(any("source-grounded evidence block" in error for error in errors))
+
+    def test_v2_profile_cannot_claim_v3_quality_contract(self) -> None:
+        self.snapshot["profile"]["skill"]["contractRevision"] = "teach-ria-v2"
+        self._write()
+        errors: list[str] = []
+        CHECKER.validate_study_snapshot(self.workspace, errors)
+        self.assertTrue(any("Skill pin is invalid" in error for error in errors))
 
     def test_published_lessons_require_index(self) -> None:
         self.snapshot["generation"] = {
