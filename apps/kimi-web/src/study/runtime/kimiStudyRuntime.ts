@@ -94,14 +94,14 @@ function isOperationMessage(message: AppMessage, expected: string): boolean {
   return message.metadata?.['kimiStudyOperationId'] === expected;
 }
 
-/**
- * v1 -> v2 migration: during the bounded migration period, a v2 installation
- * marker also accepts v1 skills if the v2 skill is not yet installed. This
- * prevents old snapshots from being rejected while the learner upgrades.
- */
-const LEGACY_CONTRACT_ALIASES: Readonly<Record<string, string>> = {
-  'teach-quick-v2': 'teach-quick-v1',
-  'teach-ria-v2': 'teach-ria-v1',
+/** Bounded migration aliases: newer Skills can resume old pinned courses.
+ * Current v3 profiles require the exact v3 marker so quality gates cannot be
+ * silently downgraded by an older installation. */
+const COMPATIBLE_CONTRACT_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  'teach-quick-v1': ['teach-quick-v2', 'teach-quick-v3'],
+  'teach-quick-v2': ['teach-quick-v1', 'teach-quick-v3'],
+  'teach-ria-v1': ['teach-ria-v2', 'teach-ria-v3'],
+  'teach-ria-v2': ['teach-ria-v1', 'teach-ria-v3'],
 };
 
 export function installedSkillMatches(
@@ -111,10 +111,9 @@ export function installedSkillMatches(
   if (installed.name !== expected.name) return false;
   const expectedMarker = `[contract:${expected.contractRevision}]`;
   if (installed.description.includes(expectedMarker)) return true;
-  // Accept v1 skill when v2 is expected, for bounded migration.
-  const legacyRevision = LEGACY_CONTRACT_ALIASES[expected.contractRevision];
-  return legacyRevision !== undefined
-    && installed.description.includes(`[contract:${legacyRevision}]`);
+  const aliases = COMPATIBLE_CONTRACT_ALIASES[expected.contractRevision] ?? [];
+  return aliases.some((revision) =>
+    installed.description.includes(`[contract:${revision}]`));
 }
 
 export class KimiStudyRuntime implements StudyRuntimePort {

@@ -10,11 +10,11 @@ import { STUDY_PRODUCT_CONTRACT_REVISION } from './courseContract';
 export const STUDY_SKILL_PINS: Readonly<Record<'quick' | 'deep', StudySkillPin>> = {
   quick: {
     name: 'teach-quick',
-    contractRevision: 'teach-quick-v2',
+    contractRevision: 'teach-quick-v3',
   },
   deep: {
     name: 'teach-ria',
-    contractRevision: 'teach-ria-v2',
+    contractRevision: 'teach-ria-v3',
   },
 };
 
@@ -95,6 +95,7 @@ export function buildSkillActivationArgs(context: SkillActivationContext): strin
     'Keep source/STUDY-SNAPSHOT.json current after every durable state transition.',
     'Never ask the learner to approve internal analysis; record automatic approvals with actor=auto_policy.',
     'Use AskUserQuestion for learner questions, exactly one question per card, with 2-4 options.',
+    'Write learner-facing lessons in natural Chinese, keep source claims traceable, and label teaching examples separately from source facts.',
   ];
 
   if (context.profile.mode === 'quick') {

@@ -231,7 +231,7 @@ describe('Study workspace configuration', () => {
 });
 
 describe('Study workflow pin', () => {
-  it('requires both the Skill name and advertised contract revision', () => {
+  it('requires the Skill name and an exact or bounded-compatible contract revision', () => {
     expect(installedSkillMatches(
       { name: 'teach-quick', description: '[contract:teach-quick-v1] Quick', source: 'user' },
       { name: 'teach-quick', contractRevision: 'teach-quick-v1' },
@@ -239,6 +239,22 @@ describe('Study workflow pin', () => {
     expect(installedSkillMatches(
       { name: 'teach-quick', description: 'legacy quick', source: 'user' },
       { name: 'teach-quick', contractRevision: 'teach-quick-v1' },
+    )).toBe(false);
+    expect(installedSkillMatches(
+      { name: 'teach-quick', description: '[contract:teach-quick-v2] Quick', source: 'user' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
+    )).toBe(false);
+    expect(installedSkillMatches(
+      { name: 'teach-quick', description: '[contract:teach-quick-v1] Quick', source: 'user' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
+    )).toBe(false);
+    expect(installedSkillMatches(
+      { name: 'teach-quick', description: '[contract:teach-quick-v3] Quick', source: 'user' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v2' },
+    )).toBe(true);
+    expect(installedSkillMatches(
+      { name: 'teach-ria', description: '[contract:teach-ria-v3] Deep', source: 'user' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
     )).toBe(false);
   });
 });
