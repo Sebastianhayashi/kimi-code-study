@@ -149,7 +149,31 @@ export interface UploadedMaterial {
 
 export interface CatalogMaterial {
   readonly materialId: string;
+  readonly materialKind: 'textbook' | 'book';
   readonly title: string;
+  readonly subtitle?: string;
+  readonly authors: readonly string[];
+  readonly language: string;
+  readonly publisher?: string;
+  readonly edition?: string;
+  readonly publicationYear?: number;
+  readonly isbn?: string;
+  readonly topics: readonly string[];
+  readonly description?: string;
+  readonly education?: {
+    readonly country?: string;
+    readonly educationStage?: string;
+    readonly grade?: string;
+    readonly subject?: string;
+    readonly semester?: string;
+    readonly curriculumStandard?: string;
+    readonly editionLabel?: string;
+  };
+  readonly cover?: {
+    readonly path: string;
+    readonly mediaType: string;
+    readonly sha256: string;
+  };
   readonly sourceRevision: string;
   /** Immutable reference to a preprocessed deep package. */
   readonly packageRef: string;

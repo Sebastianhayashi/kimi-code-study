@@ -5,6 +5,7 @@ export type { StudyProductApi, UseStudyProductOptions } from './composables/useS
 
 export {
   parseCatalogPackageManifest,
+  parseCatalogIndex,
   STUDY_PACKAGE_CONTRACT_REVISION,
 } from './domain/catalogPackage';
 export type {

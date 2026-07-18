@@ -2,10 +2,11 @@
 <!-- Kimi Study product shell. The core path is deliberately narrow:
      upload material, generate with Quick, optionally deepen, then learn. -->
 <script setup lang="ts">
-import { computed, onMounted, provide, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppearance } from '../composables/client/useAppearance';
 import { initServerAuth, setCredential } from '../api/daemon/serverAuth';
+import { isDaemonApiError } from '../api/errors';
 import Button from '../components/ui/Button.vue';
 import Icon from '../components/ui/Icon.vue';
 import Spinner from '../components/ui/Spinner.vue';
@@ -14,6 +15,7 @@ import {
   STUDY_PRODUCT_INJECTION_KEY,
   useStudyProduct,
   type QuestionResponse,
+  type CertifiedCatalogMaterial,
   type StudyCourseBinding,
 } from './foundation';
 import StudyProductHome from './components/product/StudyProductHome.vue';
@@ -30,6 +32,11 @@ useAppearance();
 const product = useStudyProduct();
 provide(STUDY_PRODUCT_INJECTION_KEY, product);
 const courses = ref<readonly StudyCourseBinding[]>([]);
+const catalog = ref<readonly CertifiedCatalogMaterial[]>([]);
+const coverUrls = ref<Readonly<Record<string, string>>>({});
+const catalogBusy = ref(false);
+const importState = ref<'idle' | 'installing' | 'succeeded' | 'failed'>('idle');
+const importMessage = ref<string>();
 
 async function reloadCourses(): Promise<void> {
   try {
@@ -39,14 +46,45 @@ async function reloadCourses(): Promise<void> {
   }
 }
 
+function revokeCoverUrls(): void {
+  for (const value of Object.values(coverUrls.value)) URL.revokeObjectURL(value);
+  coverUrls.value = {};
+}
+
+async function setCatalog(materials: readonly CertifiedCatalogMaterial[]): Promise<void> {
+  catalog.value = materials;
+  revokeCoverUrls();
+  const next: Record<string, string> = {};
+  await Promise.all(materials.map(async (material) => {
+    try {
+      const cover = await product.loadCatalogCover(material);
+      if (cover !== undefined) next[material.packageRef] = URL.createObjectURL(cover);
+    } catch {
+      // A failed or unavailable cover uses the approved deterministic fallback.
+    }
+  }));
+  coverUrls.value = next;
+}
+
+async function reloadCatalog(): Promise<void> {
+  try {
+    await setCatalog(await product.listCatalog());
+  } catch {
+    catalog.value = [];
+    revokeCoverUrls();
+  }
+}
+
 onMounted(async () => {
   try {
     await product.checkReadiness();
   } catch {
     // Readiness failure is already reflected in the view state.
   }
-  await reloadCourses();
+  await Promise.all([reloadCourses(), reloadCatalog()]);
 });
+
+onBeforeUnmount(revokeCoverUrls);
 
 const model = computed(() => deriveStudyScreen(product.view.value));
 const snapshot = computed(() => product.view.value.snapshot);
@@ -69,7 +107,7 @@ async function saveServerToken(): Promise<void> {
 watch(
   () => model.value.screen,
   (screen) => {
-    if (screen === 'home') void reloadCourses();
+    if (screen === 'home') void Promise.all([reloadCourses(), reloadCatalog()]);
   },
 );
 
@@ -103,6 +141,44 @@ function onOpen(courseId: string): Promise<void> {
     const opened = await product.open(courseId);
     if (!opened) await reloadCourses();
   });
+}
+
+function importFailureKey(error: unknown): string {
+  if (!isDaemonApiError(error) || typeof error.details !== 'object' || error.details === null) {
+    return 'study.product.importFailed';
+  }
+  const code = (error.details as { study_error_code?: unknown }).study_error_code;
+  if (code === 'archive_limit_exceeded') return 'study.product.importTooLarge';
+  if (code === 'rights_missing' || code === 'rights_denied') return 'study.product.importRightsDenied';
+  if (code === 'checksum_mismatch' || code === 'inventory_mismatch' || code === 'package_identity_mismatch') {
+    return 'study.product.importIntegrityFailed';
+  }
+  if (code === 'archive_invalid' || code === 'archive_path_invalid'
+    || code === 'archive_entry_type_forbidden' || code === 'archive_path_collision'
+    || code === 'manifest_invalid' || code === 'schema_unsupported') {
+    return 'study.product.importInvalid';
+  }
+  return 'study.product.importFailed';
+}
+
+async function onImportPackage(file: File): Promise<void> {
+  catalogBusy.value = true;
+  importState.value = 'installing';
+  importMessage.value = t('study.product.importInstalling');
+  try {
+    await setCatalog(await product.installCatalogPackage(file));
+    importState.value = 'succeeded';
+    importMessage.value = t('study.product.importSucceeded');
+  } catch (error) {
+    importState.value = 'failed';
+    importMessage.value = t(importFailureKey(error));
+  } finally {
+    catalogBusy.value = false;
+  }
+}
+
+function onStartCatalog(material: CertifiedCatalogMaterial): Promise<void> {
+  return guard(() => product.startCatalog(material));
 }
 
 function onAnswer(response: QuestionResponse): Promise<void> {
@@ -189,11 +265,18 @@ function onRecheck(): Promise<void> {
       <StudyProductHome
         v-else-if="model.screen === 'home'"
         :courses="courses"
+        :catalog="catalog"
+        :cover-urls="coverUrls"
         :busy="model.busy"
+        :catalog-busy="catalogBusy"
         :auth-required="model.authRequired"
         :readiness-message="model.readinessMessage"
+        :import-state="importState"
+        :import-message="importMessage"
         @upload="onUpload"
+        @import-package="onImportPackage"
         @open="onOpen"
+        @start-catalog="onStartCatalog"
         @recheck="onRecheck"
       />
 

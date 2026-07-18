@@ -74,6 +74,10 @@ export interface StudyRuntimePort {
   listCourseFiles(courseId: string, path: string): Promise<readonly FsEntry[] | undefined>;
   /** Certified prepared-source packages available in the workspace catalog. */
   listCatalog(): Promise<readonly CertifiedCatalogMaterial[]>;
+  /** Upload and server-install one prepared-material archive. */
+  installCatalogPackage(file: File): Promise<readonly CertifiedCatalogMaterial[]>;
+  /** Authenticated verified cover bytes; undefined means use the product fallback. */
+  loadCatalogCover(material: CertifiedCatalogMaterial): Promise<Blob | undefined>;
   /** Ask the course tutor with the current page context attached. */
   sendTutorMessage(courseId: string, text: string, context: TutorLessonContext): Promise<void>;
   /** Session messages, used to project the tutor thread. */

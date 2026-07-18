@@ -10,7 +10,7 @@ import type {
   QuestionResponse,
 } from '../../api/types';
 import { isDaemonApiError } from '../../api/errors';
-import { parseCatalogPackageManifest } from '../domain/catalogPackage';
+import { parseCatalogIndex } from '../domain/catalogPackage';
 import type { CertifiedCatalogMaterial } from '../domain/catalogPackage';
 import { parseStudyArtifact } from '../domain/courseArtifact';
 import type {
@@ -37,8 +37,6 @@ import { normalizeStudyQuestion } from './studyRuntime';
 
 const SNAPSHOT_PATH = 'source/STUDY-SNAPSHOT.json';
 const LAUNCHER_TITLE = '[Kimi Study] workspace launcher';
-const CATALOG_DIR = 'packages';
-const PACKAGE_MANIFEST = 'source/STUDY-PACKAGE.json';
 const SESSION_NOT_FOUND = 40401;
 const FS_PATH_NOT_FOUND = 40409;
 const FS_ALREADY_EXISTS = 40919;
@@ -112,9 +110,10 @@ const COMPATIBLE_CONTRACT_ALIASES: Readonly<Record<string, readonly string[]>> =
   'teach-quick-v1': ['teach-quick-v2', 'teach-quick-v3', 'teach-quick-v4'],
   'teach-quick-v2': ['teach-quick-v1', 'teach-quick-v3', 'teach-quick-v4'],
   'teach-quick-v3': ['teach-quick-v4'],
-  'teach-ria-v1': ['teach-ria-v2', 'teach-ria-v3', 'teach-ria-v4'],
-  'teach-ria-v2': ['teach-ria-v1', 'teach-ria-v3', 'teach-ria-v4'],
-  'teach-ria-v3': ['teach-ria-v4'],
+  'teach-ria-v1': ['teach-ria-v2', 'teach-ria-v3', 'teach-ria-v4', 'teach-ria-v5'],
+  'teach-ria-v2': ['teach-ria-v1', 'teach-ria-v3', 'teach-ria-v4', 'teach-ria-v5'],
+  'teach-ria-v3': ['teach-ria-v4', 'teach-ria-v5'],
+  'teach-ria-v4': ['teach-ria-v5'],
 };
 
 export function installedSkillMatches(
@@ -189,7 +188,11 @@ export class KimiStudyRuntime implements StudyRuntimePort {
     const profile = input.snapshot.profile;
     if (profile === null) throw new Error('Study mode must be selected before starting a course.');
     return this.coalesce(`start:${input.snapshot.courseId}:${profile.skill.contractRevision}`, async () => {
-      let binding = await this.ensureBinding(input.snapshot, input.uploadedMaterial);
+      let binding = await this.ensureBinding(
+        input.snapshot,
+        input.uploadedMaterial,
+        input.catalogMaterial,
+      );
       const operation = operationId(input.snapshot, 'start');
       if (binding.operations[operation] !== undefined
         || await this.sessionHasOperation(binding.sessionId, operation)) return binding;
@@ -494,37 +497,29 @@ export class KimiStudyRuntime implements StudyRuntimePort {
     return this.listAllMessages(binding.sessionId);
   }
 
-  /**
-   * Certified prepared-source packages under `<workspace>/packages/<id>/`.
-   * Manifests are parsed through the same trust gate as course starts;
-   * anything malformed, unsupported, or unsafe is hidden, never repaired.
-   */
   async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> {
     const launcher = await this.ensureLauncherSession();
-    let entries: readonly FsEntry[];
-    try {
-      const listing = await this.api.listDirectory(launcher, { path: CATALOG_DIR, depth: 1 });
-      entries = listing.items;
-    } catch (error) {
-      if (isDaemonApiError(error) && error.code === FS_PATH_NOT_FOUND) return [];
-      throw error;
+    const parsed = parseCatalogIndex(await this.api.listStudyCatalogPackages(launcher));
+    if (parsed.status !== 'ready') {
+      throw new Error('The prepared-material library could not be verified.');
     }
-    const materials: CertifiedCatalogMaterial[] = [];
-    for (const entry of entries) {
-      if (entry.kind !== 'directory') continue;
-      try {
-        const file = await this.api.readFile(launcher, {
-          path: `${CATALOG_DIR}/${entry.name}/${PACKAGE_MANIFEST}`,
-        });
-        if (file.isBinary || file.encoding !== 'utf-8' || file.truncated) continue;
-        const parsed = parseCatalogPackageManifest(file.content);
-        if (parsed.status === 'ready') materials.push(parsed.material);
-      } catch (error) {
-        if (isDaemonApiError(error) && error.code === FS_PATH_NOT_FOUND) continue;
-        throw error;
-      }
+    return parsed.materials;
+  }
+
+  async installCatalogPackage(file: File): Promise<readonly CertifiedCatalogMaterial[]> {
+    if (!file.name.toLocaleLowerCase().endsWith('.kstudy.zip')) {
+      throw new Error('Choose a .kstudy.zip prepared-material package.');
     }
-    return materials;
+    const launcher = await this.ensureLauncherSession();
+    const uploaded = await this.api.uploadFile({ file, name: file.name });
+    await this.api.installStudyCatalogPackage({ sessionId: launcher, fileId: uploaded.id });
+    return this.listCatalog();
+  }
+
+  async loadCatalogCover(material: CertifiedCatalogMaterial): Promise<Blob | undefined> {
+    if (material.cover === undefined) return undefined;
+    const launcher = await this.ensureLauncherSession();
+    return this.api.getStudyCatalogCover(launcher, material.packageRef);
   }
 
   private async submitLessonOperation(
@@ -585,6 +580,7 @@ export class KimiStudyRuntime implements StudyRuntimePort {
   private async ensureBinding(
     snapshot: CourseSnapshot,
     uploadedMaterial?: UploadedMaterial,
+    catalogMaterial?: CertifiedCatalogMaterial,
   ): Promise<StudyCourseBinding> {
     assertCourseId(snapshot.courseId);
     const existing = await this.resumeCourse(snapshot.courseId);
@@ -607,14 +603,29 @@ export class KimiStudyRuntime implements StudyRuntimePort {
     }
 
     const launcher = await this.ensureLauncherSession();
-    const listing = await this.api.listDirectory(launcher, { path: '.', depth: 1 });
-    const directoryExists = listing.items.some((entry) =>
-      entry.kind === 'directory' && entry.name === snapshot.courseId);
-    if (!directoryExists) {
-      try {
-        await this.api.makeDirectory(launcher, { path: snapshot.courseId });
-      } catch (error) {
-        if (!isDaemonApiError(error) || error.code !== FS_ALREADY_EXISTS) throw error;
+    if (snapshot.source.kind === 'catalog') {
+      if (catalogMaterial === undefined || snapshot.profile?.packageRef !== catalogMaterial.packageRef) {
+        throw new Error('The selected prepared material no longer matches this course.');
+      }
+      const created = await this.api.materializeStudyCatalogCourse({
+        sessionId: launcher,
+        courseId: snapshot.courseId,
+        packageRef: catalogMaterial.packageRef,
+      });
+      if (created.packageRef !== catalogMaterial.packageRef
+        || created.sourceRevision !== catalogMaterial.sourceRevision) {
+        throw new Error('The prepared material changed while the course was being created.');
+      }
+    } else {
+      const listing = await this.api.listDirectory(launcher, { path: '.', depth: 1 });
+      const directoryExists = listing.items.some((entry) =>
+        entry.kind === 'directory' && entry.name === snapshot.courseId);
+      if (!directoryExists) {
+        try {
+          await this.api.makeDirectory(launcher, { path: snapshot.courseId });
+        } catch (error) {
+          if (!isDaemonApiError(error) || error.code !== FS_ALREADY_EXISTS) throw error;
+        }
       }
     }
     const session = await this.api.createSession({
@@ -687,6 +698,7 @@ export class KimiStudyRuntime implements StudyRuntimePort {
       sessionId,
       title: snapshot.source.title,
       sourceKind: snapshot.source.kind,
+      packageRef: snapshot.profile?.packageRef,
       uploadedMaterial,
       operations: {},
       updatedAt: this.now(),

@@ -64,6 +64,8 @@ export function useStudyProduct(options: UseStudyProductOptions = {}) {
     refresh: controller.refresh.bind(controller),
     listCourses: controller.listCourses.bind(controller),
     listCatalog: controller.listCatalog.bind(controller),
+    installCatalogPackage: controller.installCatalogPackage.bind(controller),
+    loadCatalogCover: controller.loadCatalogCover.bind(controller),
     showHome: controller.showHome.bind(controller),
     answerQuestion: controller.answerQuestion.bind(controller),
     skipQuestion: controller.skipQuestion.bind(controller),

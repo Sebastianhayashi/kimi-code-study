@@ -1408,6 +1408,39 @@ export class DaemonKimiWebApi implements KimiWebApi {
     return this.http.getBlob(`/files/${encodeURIComponent(fileId)}`);
   }
 
+  async installStudyCatalogPackage(input: { sessionId: string; fileId: string }): Promise<unknown> {
+    return this.http.post('/study/catalog/packages:install', {
+      session_id: input.sessionId,
+      file_id: input.fileId,
+    });
+  }
+
+  async listStudyCatalogPackages(sessionId: string): Promise<unknown> {
+    return this.http.get('/study/catalog/packages', { session_id: sessionId });
+  }
+
+  async materializeStudyCatalogCourse(input: {
+    sessionId: string;
+    courseId: string;
+    packageRef: string;
+  }): Promise<{ courseId: string; packageRef: string; sourceRevision: string }> {
+    const value = await this.http.post<{
+      courseId: string;
+      packageRef: string;
+      sourceRevision: string;
+    }>('/study/catalog/courses:materialize', {
+      session_id: input.sessionId,
+      course_id: input.courseId,
+      package_ref: input.packageRef,
+    });
+    return value;
+  }
+
+  async getStudyCatalogCover(sessionId: string, packageRef: string): Promise<Blob> {
+    const query = new URLSearchParams({ session_id: sessionId, package_ref: packageRef });
+    return this.http.getBlob(`/study/catalog/cover?${query.toString()}`);
+  }
+
   // -------------------------------------------------------------------------
   // WebSocket events
   // -------------------------------------------------------------------------

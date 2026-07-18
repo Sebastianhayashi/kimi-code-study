@@ -170,6 +170,8 @@ class FakeRuntime implements StudyRuntimePort {
   }
   async listCourseFiles(): Promise<readonly FsEntry[] | undefined> { return undefined; }
   async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> { return []; }
+  async installCatalogPackage(): Promise<readonly CertifiedCatalogMaterial[]> { return []; }
+  async loadCatalogCover(): Promise<Blob | undefined> { return undefined; }
   async sendTutorMessage(): Promise<void> {}
   async listTutorMessages(): Promise<readonly AppMessage[]> { return []; }
   async requestPlanChange(
@@ -309,7 +311,7 @@ describe('Study workflow pin', () => {
       { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
     )).toBe(true);
     expect(installedSkillMatches(
-      { name: 'teach-ria', description: '[contract:teach-ria-v4] Deep', source: 'user' },
+      { name: 'teach-ria', description: '[contract:teach-ria-v5] Deep', source: 'user' },
       { name: 'teach-quick', contractRevision: 'teach-quick-v4' },
     )).toBe(false);
   });

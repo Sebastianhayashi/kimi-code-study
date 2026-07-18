@@ -14,7 +14,7 @@ export const STUDY_SKILL_PINS: Readonly<Record<'quick' | 'deep', StudySkillPin>>
   },
   deep: {
     name: 'teach-ria',
-    contractRevision: 'teach-ria-v4',
+    contractRevision: 'teach-ria-v5',
   },
 };
 

@@ -17,6 +17,7 @@ export interface StudyCourseBinding {
   readonly sessionId: string;
   readonly title: string;
   readonly sourceKind: 'upload' | 'catalog';
+  readonly packageRef?: string;
   readonly uploadedMaterial?: UploadedMaterial;
   readonly operations: Readonly<Record<string, StudyOperationMarker>>;
   readonly updatedAt: string;
@@ -81,6 +82,7 @@ function parseBinding(value: unknown): StudyCourseBinding | undefined {
     sessionId: value.sessionId as string,
     title: value.title as string,
     sourceKind: value.sourceKind,
+    packageRef: typeof value.packageRef === 'string' ? value.packageRef : undefined,
     uploadedMaterial,
     operations,
     updatedAt: value.updatedAt as string,

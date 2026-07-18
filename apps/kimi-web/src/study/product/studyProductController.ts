@@ -206,6 +206,14 @@ export class StudyProductController {
     return this.runtime.listCatalog();
   }
 
+  async installCatalogPackage(file: File): Promise<readonly CertifiedCatalogMaterial[]> {
+    return this.runtime.installCatalogPackage(file);
+  }
+
+  async loadCatalogCover(material: CertifiedCatalogMaterial): Promise<Blob | undefined> {
+    return this.runtime.loadCatalogCover(material);
+  }
+
   /** Leave the active course and return to the home screen. */
   showHome(): void {
     this.nextContext();

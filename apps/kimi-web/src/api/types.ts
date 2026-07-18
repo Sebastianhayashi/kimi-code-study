@@ -744,6 +744,17 @@ export interface KimiWebApi {
   /** Fetch a file's bytes with auth — feed the resulting Blob to a blob URL for <video>/<img> src. */
   getFileBlob(fileId: string): Promise<Blob>;
 
+  // Kimi Study prepared-material Catalog. ZIP bytes are uploaded through the
+  // existing file service, then verified and installed server-side.
+  installStudyCatalogPackage(input: { sessionId: string; fileId: string }): Promise<unknown>;
+  listStudyCatalogPackages(sessionId: string): Promise<unknown>;
+  materializeStudyCatalogCourse(input: {
+    sessionId: string;
+    courseId: string;
+    packageRef: string;
+  }): Promise<{ courseId: string; packageRef: string; sourceRevision: string }>;
+  getStudyCatalogCover(sessionId: string, packageRef: string): Promise<Blob>;
+
   // Config — REAL endpoints
   getConfig(): Promise<AppConfig>;
   setConfig(patch: Partial<AppConfig>): Promise<AppConfig>;

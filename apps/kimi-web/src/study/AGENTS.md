@@ -73,7 +73,7 @@ Do not expose Kimi Code title, model selector, permission mode, plan mode, swarm
 - Missing/malformed/truncated/stale artifacts stay missing, unavailable, unsafe, or blocked. Never invent readiness.
 - Generate only when plan source/Mission revisions match the current snapshot.
 - Quick evidence is `survey`; it can never become `certified` without switching to Deep.
-- Catalog material must come from `parseCatalogPackageManifest`. Do not cast or manually construct `CertifiedCatalogMaterial`.
+- Catalog material must come from `parseCatalogPackageManifest` or `parseCatalogIndex`. Do not cast or manually construct `CertifiedCatalogMaterial`.
 
 ## UX contract
 

@@ -107,7 +107,7 @@ watch(
       (initial ?? list[0] ?? panel.value)?.focus();
     } else {
       openDialogCount.value = Math.max(0, openDialogCount.value - 1);
-      if (previouslyFocused instanceof HTMLElement) {
+      if (typeof HTMLElement !== 'undefined' && previouslyFocused instanceof HTMLElement) {
         previouslyFocused.focus();
         previouslyFocused = null;
       }
