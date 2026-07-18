@@ -1,6 +1,6 @@
 ---
 name: teach-ria
-description: "[contract:teach-ria-v4] Read an uploaded textbook or nonfiction source in full, distill it through verified RIA++ method units while interviewing the learner's Mission, and build a source-faithful Chinese course. Use for Kimi Study deep mode, upgrades from quick mode, and certified preprocessed textbook packages."
+description: "[contract:teach-ria-v5] Read an uploaded textbook or nonfiction source in full, distill it through verified RIA++ method units while interviewing the learner's Mission, and build a source-faithful Chinese course. Use for Kimi Study deep mode, upgrades from quick mode, and certified preprocessed textbook packages."
 ---
 
 # Teach RIA
@@ -109,7 +109,7 @@ A catalog package skips expensive reading only when it contains:
 
 Verify the package reference and manifest before mounting it. Never trust a title match. Reuse source-bound reading, overview, and RIA artifacts, then run the learner's 2–4 question Mission interview and build a fresh mission-bound blueprint/map. If the package is incomplete or stale, mark the source blocked; do not silently redo or pretend certification.
 
-To prepare a common textbook before any learner arrives, complete only the source-bound reading and RIA gates, then follow [CATALOG-PACKAGE-FORMAT.md](./CATALOG-PACKAGE-FORMAT.md) and run `scripts/build-catalog-package.py`. Do not invent a generic Mission, blueprint, teaching map, or lessons during preprocessing.
+To prepare a common textbook or nonfiction book before any learner arrives, complete only the source-bound reading and RIA gates, add explicit Catalog metadata and machine-enforceable rights, then follow [CATALOG-PACKAGE-FORMAT.md](./CATALOG-PACKAGE-FORMAT.md) and run `scripts/build-catalog-package.py`. The result is an installable `*.kstudy.zip`; do not invent a generic Mission, blueprint, teaching map, or lessons during preprocessing.
 
 ## Generate only from current revisions
 

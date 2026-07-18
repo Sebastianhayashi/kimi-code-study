@@ -11,7 +11,7 @@ Required identity for a fresh upload:
   "courseId": "course-from-activation-args",
   "profile": {
     "mode": "deep",
-    "skill": { "name": "teach-ria", "contractRevision": "teach-ria-v4" },
+    "skill": { "name": "teach-ria", "contractRevision": "teach-ria-v5" },
     "sourceRevision": "exact-source-revision",
     "selectedBy": "user"
   }

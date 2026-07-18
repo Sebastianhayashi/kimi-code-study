@@ -206,7 +206,7 @@ class StudySnapshotTest(unittest.TestCase):
             "courseId": "course-12345678",
             "profile": {
                 "mode": "deep",
-                "skill": {"name": "teach-ria", "contractRevision": "teach-ria-v4"},
+                "skill": {"name": "teach-ria", "contractRevision": "teach-ria-v5"},
                 "sourceRevision": "file:file-1",
                 "selectedBy": "user",
             },

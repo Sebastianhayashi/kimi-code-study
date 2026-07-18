@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "contractRevision": "kimi-study-package-v2",
+  "materialId": "physics/common-v1",
+  "materialKind": "book",
+  "title": "共同物理",
+  "authors": ["示例作者"],
+  "language": "zh-CN",
+  "topics": ["physics", "物理"],
+  "source": {
+    "path": "source/original/book.pdf",
+    "size": 10,
+    "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "role": "original-source",
+    "mediaType": "application/pdf"
+  },
+  "metadata": {
+    "path": "source/CATALOG-METADATA.json",
+    "size": 20,
+    "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "role": "catalog-metadata",
+    "mediaType": "application/json"
+  },
+  "rights": {
+    "path": "source/RIGHTS.json",
+    "size": 30,
+    "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "role": "rights",
+    "mediaType": "application/json"
+  },
+  "reading": {
+    "coveragePercent": 100,
+    "blockedRanges": [],
+    "certificateRevision": "read-v1"
+  },
+  "ria": {
+    "status": "complete",
+    "revision": "ria-v1"
+  },
+  "approvals": [],
+  "files": [],
+  "packageRevision": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "packageRef": "catalog://ignored@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "builtAt": "2099-01-01T00:00:00Z"
+}

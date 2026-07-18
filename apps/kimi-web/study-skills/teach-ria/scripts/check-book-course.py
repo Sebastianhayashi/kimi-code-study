@@ -754,7 +754,7 @@ def validate_study_snapshot(workspace: Path, errors: list[str]) -> None:
     mode = profile.get("mode")
     if mode not in {"deep", "deep_preprocessed"}:
         errors.append("STUDY-SNAPSHOT.json: deep profile mode is invalid")
-    if profile.get("skill") != {"name": "teach-ria", "contractRevision": "teach-ria-v4"}:
+    if profile.get("skill") != {"name": "teach-ria", "contractRevision": "teach-ria-v5"}:
         errors.append("STUDY-SNAPSHOT.json: teach-ria Skill pin is invalid")
     if profile.get("sourceRevision") != source.get("revision"):
         errors.append("STUDY-SNAPSHOT.json: profile and source revisions differ")
