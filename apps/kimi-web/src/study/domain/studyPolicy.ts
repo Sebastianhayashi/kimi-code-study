@@ -10,11 +10,11 @@ import { STUDY_PRODUCT_CONTRACT_REVISION } from './courseContract';
 export const STUDY_SKILL_PINS: Readonly<Record<'quick' | 'deep', StudySkillPin>> = {
   quick: {
     name: 'teach-quick',
-    contractRevision: 'teach-quick-v3',
+    contractRevision: 'teach-quick-v4',
   },
   deep: {
     name: 'teach-ria',
-    contractRevision: 'teach-ria-v3',
+    contractRevision: 'teach-ria-v4',
   },
 };
 
@@ -54,7 +54,7 @@ const PUBLIC_COPY_FORBIDDEN = [
   /\bskill\s+(?:pin|activation|directory)\b/i,
   /\bactivateSkill\b/i,
   /\bRIA\b/i,
-  /\bV[123]\b/i,
+  /\bV\d+\b/i,
   /\bA[12]\b/i,
   /\bchecker\b/i,
   /\bBOOK-READING-STATE\b/i,

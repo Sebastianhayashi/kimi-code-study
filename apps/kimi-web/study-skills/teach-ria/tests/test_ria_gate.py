@@ -206,7 +206,7 @@ class StudySnapshotTest(unittest.TestCase):
             "courseId": "course-12345678",
             "profile": {
                 "mode": "deep",
-                "skill": {"name": "teach-ria", "contractRevision": "teach-ria-v3"},
+                "skill": {"name": "teach-ria", "contractRevision": "teach-ria-v4"},
                 "sourceRevision": "file:file-1",
                 "selectedBy": "user",
             },
@@ -315,7 +315,7 @@ class StudySnapshotTest(unittest.TestCase):
         self.assertTrue(any("html language must be zh-CN" in error for error in errors))
         self.assertTrue(any("source-grounded evidence block" in error for error in errors))
 
-    def test_v2_profile_cannot_claim_v3_quality_contract(self) -> None:
+    def test_v2_profile_cannot_claim_v4_lesson_contract(self) -> None:
         self.snapshot["profile"]["skill"]["contractRevision"] = "teach-ria-v2"
         self._write()
         errors: list[str] = []

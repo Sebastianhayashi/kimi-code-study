@@ -77,7 +77,7 @@ class QuickGateTest(unittest.TestCase):
             "courseId": "course-12345678",
             "profile": {
                 "mode": "quick",
-                "skill": {"name": "teach-quick", "contractRevision": "teach-quick-v3"},
+                "skill": {"name": "teach-quick", "contractRevision": "teach-quick-v4"},
                 "sourceRevision": "file:file-1",
                 "selectedBy": "user",
             },
@@ -203,7 +203,7 @@ class QuickGateTest(unittest.TestCase):
         errors = CHECKER.validate(self.workspace)
         self.assertTrue(any("repeated learner-facing block" in error for error in errors))
 
-    def test_v2_profile_cannot_claim_v3_quality_contract(self) -> None:
+    def test_v2_profile_cannot_claim_v4_lesson_contract(self) -> None:
         self.snapshot["profile"]["skill"]["contractRevision"] = "teach-quick-v2"
         self._write_snapshot()
         errors = CHECKER.validate(self.workspace)

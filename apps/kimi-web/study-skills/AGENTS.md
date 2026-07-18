@@ -4,8 +4,8 @@ These instructions apply to `apps/kimi-web/study-skills/**`.
 
 ## Contracts
 
-- `teach-quick` advertises `[contract:teach-quick-v3]` and writes survey evidence only.
-- `teach-ria` advertises `[contract:teach-ria-v3]` and preserves all whole-reading/RIA fidelity gates.
+- `teach-quick` advertises `[contract:teach-quick-v4]` and writes survey evidence only.
+- `teach-ria` advertises `[contract:teach-ria-v4]` and preserves all whole-reading/RIA fidelity gates.
 - Both write `source/STUDY-SNAPSHOT.json` for `kimi-study-foundation-v1`.
 - `CONTRACT.json`, Skill frontmatter, `src/study/domain/studyPolicy.ts`, runtime checks, and tests must agree.
 

@@ -754,7 +754,7 @@ def validate_study_snapshot(workspace: Path, errors: list[str]) -> None:
     mode = profile.get("mode")
     if mode not in {"deep", "deep_preprocessed"}:
         errors.append("STUDY-SNAPSHOT.json: deep profile mode is invalid")
-    if profile.get("skill") != {"name": "teach-ria", "contractRevision": "teach-ria-v3"}:
+    if profile.get("skill") != {"name": "teach-ria", "contractRevision": "teach-ria-v4"}:
         errors.append("STUDY-SNAPSHOT.json: teach-ria Skill pin is invalid")
     if profile.get("sourceRevision") != source.get("revision"):
         errors.append("STUDY-SNAPSHOT.json: profile and source revisions differ")
@@ -842,18 +842,29 @@ def main() -> int:
         )
     elif args.lesson:
         lesson = resolve_workspace_path(workspace, str(args.lesson))
-        brief = source_dir / "lesson-briefs" / f"{lesson.stem}.md"
-        validate_brief(
-            workspace,
-            brief,
-            mission_hash,
-            revision,
-            slice_ids,
-            map_slice_order,
-            ria_unit_ids,
-            errors,
-        )
-        validate_lesson(workspace, lesson, brief, errors)
+        try:
+            relative = lesson.relative_to(workspace).as_posix()
+        except ValueError:
+            errors.append("candidate lesson must stay inside the course workspace")
+        else:
+            if not re.fullmatch(
+                r"(?:lessons|\.study-drafts)/[A-Za-z0-9][A-Za-z0-9._-]*\.html",
+                relative,
+            ):
+                errors.append("candidate lesson path is unsafe")
+            else:
+                brief = source_dir / "lesson-briefs" / f"{lesson.stem}.md"
+                validate_brief(
+                    workspace,
+                    brief,
+                    mission_hash,
+                    revision,
+                    slice_ids,
+                    map_slice_order,
+                    ria_unit_ids,
+                    errors,
+                )
+                validate_lesson(workspace, lesson, brief, errors)
 
     if errors:
         print("Book-course fidelity check failed:", file=sys.stderr)

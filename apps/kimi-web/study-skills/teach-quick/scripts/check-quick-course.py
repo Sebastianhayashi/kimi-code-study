@@ -168,7 +168,7 @@ def validate(workspace: Path) -> list[str]:
     if snapshot.get("schemaVersion") != 1 or snapshot.get("contractRevision") != "kimi-study-foundation-v1":
         errors.append("STUDY-SNAPSHOT.json: unsupported product contract")
     if not isinstance(profile, dict) or profile.get("mode") != "quick" or profile.get("skill") != {
-        "name": "teach-quick", "contractRevision": "teach-quick-v3"
+        "name": "teach-quick", "contractRevision": "teach-quick-v4"
     }:
         errors.append("STUDY-SNAPSHOT.json: quick profile pin is invalid")
     if not isinstance(source, dict) or source.get("revision") != source_revision:
@@ -204,7 +204,10 @@ def main() -> int:
         except ValueError:
             errors.append("candidate lesson must stay inside the course workspace")
         else:
-            if not re.fullmatch(r"lessons/[A-Za-z0-9][A-Za-z0-9._-]*\.html", relative):
+            if not re.fullmatch(
+                r"(?:lessons|\.study-drafts)/[A-Za-z0-9][A-Za-z0-9._-]*\.html",
+                relative,
+            ):
                 errors.append("candidate lesson path is unsafe")
             elif not lesson.is_file():
                 errors.append(f"candidate lesson is missing: {relative}")

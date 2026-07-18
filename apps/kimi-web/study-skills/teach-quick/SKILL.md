@@ -1,6 +1,6 @@
 ---
 name: teach-quick
-description: "[contract:teach-quick-v3] Survey an uploaded learning source end to end, clarify the learner's Mission with at most one question, and build the fastest honest Chinese course path. Use for Kimi Study quick mode when the learner is still deciding how deeply to study a book, document, transcript, or mixed set of learning materials."
+description: "[contract:teach-quick-v4] Survey an uploaded learning source end to end, clarify the learner's Mission with at most one question, and build the fastest honest Chinese course path. Use for Kimi Study quick mode when the learner is still deciding how deeply to study a book, document, transcript, or mixed set of learning materials."
 ---
 
 # Teach Quick
@@ -23,7 +23,7 @@ Maintain these artifacts as they become relevant:
 - `source/QUICK-SURVEY.md`: traceable survey of the entire supplied material. Follow [QUICK-SURVEY-FORMAT.md](./QUICK-SURVEY-FORMAT.md).
 - `source/QUICK-PLAN.md`: mission-bound outline. Follow [QUICK-PLAN-FORMAT.md](./QUICK-PLAN-FORMAT.md).
 - `MISSION.md`: concrete learner outcome. Follow [MISSION-FORMAT.md](./MISSION-FORMAT.md).
-- `lessons/*.html`: short numbered lessons published incrementally. Follow [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md).
+- `lessons/*.html`: short numbered lessons published incrementally. Follow [LESSON-QUALITY-FORMAT.md](./LESSON-QUALITY-FORMAT.md). Current-lesson replacements also follow [LESSON-REVISION-FORMAT.md](./LESSON-REVISION-FORMAT.md).
 - `lessons/index.json`: versioned lesson title/order/publication manifest. Follow [LESSON-INDEX-FORMAT.md](./LESSON-INDEX-FORMAT.md).
 - `reference/*.html`: durable quick-reference artifacts.
 - `learning-records/*.md`: evidence-backed changes in understanding. Follow [LEARNING-RECORD-FORMAT.md](./LEARNING-RECORD-FORMAT.md).
@@ -71,7 +71,7 @@ Never write `actor=user` unless the learner actually performed an explicit exper
 
 ### 1. Initialize
 
-Create or update `source/STUDY-SNAPSHOT.json` with mode `quick`, Skill pin `teach-quick-v3`, source status `surveying`, Mission status `not_started` or `interviewing`, and plan/generation status `not_started`.
+Create or update `source/STUDY-SNAPSHOT.json` with mode `quick`, Skill pin `teach-quick-v4`, source status `surveying`, Mission status `not_started` or `interviewing`, and plan/generation status `not_started`.
 
 ### 2. Survey the source
 
@@ -124,6 +124,10 @@ Each lesson must:
 Before publication, run `python3 scripts/check-quick-course.py --workspace /absolute/workspace --lesson lessons/NNNN-name.html`. After the lesson index and snapshot advance, run the full checker again so cross-lesson repetition and publication counts are checked. A structural pass never replaces reopening and semantically comparing every source anchor.
 
 Use high-trust external sources only to correct, update, or clarify the uploaded material. Never replace missing source content with parametric guesses.
+
+### 5a. Revise or regenerate one published lesson
+
+When Kimi Study names an exact lesson path, base content revision, and operation id, read [LESSON-REVISION-FORMAT.md](./LESSON-REVISION-FORMAT.md) before acting. Reject stale revisions. Draft and validate only the named lesson, preserve its indexed identity and exact source-anchor set, then publish through `scripts/lesson_revision.py`. Do not create a course, change the plan, alter generation counts, or touch another lesson. A failed check leaves the published lesson unchanged.
 
 ## Upgrade boundary
 
