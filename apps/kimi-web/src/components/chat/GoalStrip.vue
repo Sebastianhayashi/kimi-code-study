@@ -237,7 +237,7 @@ async function onCancel(): Promise<void> {
 .goal-progress-fill {
   display: block;
   height: 100%;
-  border-radius: inherit;
+  border-radius: var(--radius-full);
   background: var(--color-success);
 }
 .goal-chevron {
@@ -301,7 +301,7 @@ async function onCancel(): Promise<void> {
   gap: var(--space-2);
   color: var(--color-text-muted);
   font: var(--text-xs)/var(--leading-normal) var(--font-ui);
-  font-weight: 450;
+  font-weight: var(--weight-regular);
   font-variant-numeric: tabular-nums;
 }
 .goal-actions {
@@ -314,7 +314,7 @@ async function onCancel(): Promise<void> {
   flex: none;
   min-width: 0;
   height: var(--composer-send-size);
-  border-radius: calc(var(--composer-send-size) / 2);
+  border-radius: var(--radius-full);
   padding-inline: var(--space-4);
 }
 .goal-action :deep(.ui-button__content) {

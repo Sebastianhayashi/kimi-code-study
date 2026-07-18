@@ -212,8 +212,6 @@ export interface PromptSubmission {
   agentId?: string;
   /** The daemon requires these on every prompt (per-prompt, not session-level). */
   model?: string;
-  /** Omit to leave the session profile's thinking untouched — the daemon then
-   *  resolves the config/model default (same as an unset [thinking] in the TUI). */
   thinking?: ThinkingLevel;
   permissionMode?: 'manual' | 'auto' | 'yolo';
   planMode?: boolean;

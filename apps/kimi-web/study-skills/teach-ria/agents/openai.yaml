@@ -1,0 +1,6 @@
+interface:
+  display_name: "Teach RIA"
+  short_description: "Deep-read, verify, distill, and teach uploaded material"
+  default_prompt: "Use $teach-ria to read my nonfiction source in full, distill it through verified RIA++ units while interviewing my Mission, then build a source-faithful course."
+policy:
+  allow_implicit_invocation: false

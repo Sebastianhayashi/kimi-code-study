@@ -119,7 +119,6 @@ const emit = defineEmits<{
   loadMoreSessions: [workspaceId: string];
   loadAllSessions: [];
   openSettings: [];
-  openStudy: [];
   collapse: [];
 }>();
 
@@ -810,10 +809,6 @@ onBeforeUnmount(() => {
 
       <!-- Footer: settings entry pinned under the session list -->
       <div class="side-footer">
-        <button class="btn-study" type="button" @click.stop="emit('openStudy')">
-          <Icon name="book" />
-          <span>{{ t('study.title') }}</span>
-        </button>
         <button class="btn-settings" type="button" @click.stop="emit('openSettings')">
           <Icon name="settings" />
           <span>{{ t('settings.title') }}</span>
@@ -1175,8 +1170,7 @@ onBeforeUnmount(() => {
   padding: var(--space-2) var(--sb-inset);
   border-top: 1px solid var(--line);
 }
-.btn-settings,
-.btn-study {
+.btn-settings {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1193,14 +1187,10 @@ onBeforeUnmount(() => {
   cursor: pointer;
   text-align: left;
 }
-.btn-settings:hover,
-.btn-study:hover { background: var(--sb-hover); }
-.btn-settings:focus-visible,
-.btn-study:focus-visible { outline: none; box-shadow: var(--p-focus-ring); }
-.btn-settings svg,
-.btn-study svg { flex: none; }
-.btn-settings span,
-.btn-study span {
+.btn-settings:hover { background: var(--sb-hover); }
+.btn-settings:focus-visible { outline: none; box-shadow: var(--p-focus-ring); }
+.btn-settings svg { flex: none; }
+.btn-settings span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

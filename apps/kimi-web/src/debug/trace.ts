@@ -55,7 +55,6 @@ const EXPORT_TRACE_EVENTS = [
   'session:snapshot:start',
   'session:snapshot:accepted',
   'session:snapshot:failed',
-  'operation:failed',
   'window:error',
   'window:unhandled-rejection',
   'ws:connection',
@@ -69,8 +68,6 @@ type ExportTraceEvent = (typeof EXPORT_TRACE_EVENTS)[number];
 export interface ExportTraceMetadata {
   sessionId?: string;
   status?: string;
-  /** Client operation name (e.g. 'archiveSession') for operation:failed. */
-  operation?: string;
   seq?: number;
   durationMs?: number;
   messageCount?: number;
@@ -229,7 +226,6 @@ function pushExportTrace(event: string, info?: ExportTraceMetadata): void {
       event: event as ExportTraceEvent,
       sessionId: exportString(info?.sessionId),
       status: exportString(info?.status),
-      operation: exportString(info?.operation),
       seq: exportNumber(info?.seq),
       durationMs: exportNumber(info?.durationMs),
       messageCount: exportNumber(info?.messageCount),

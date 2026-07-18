@@ -283,7 +283,7 @@ onMounted(() => {
 .sd-snippet :deep(mark) {
   background: var(--color-accent);
   color: var(--color-bg);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   border-radius: var(--radius-xs);
   padding: 0 2px;
 }

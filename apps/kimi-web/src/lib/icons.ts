@@ -44,8 +44,6 @@ import RiArchiveLine from '~icons/ri/archive-line';
 import RiArrowDownLine from '~icons/ri/arrow-down-line';
 import RiArrowDownSLine from '~icons/ri/arrow-down-s-line';
 import RiArrowGoBackLine from '~icons/ri/arrow-go-back-line';
-import RiBookLine from '~icons/ri/book-line';
-import RiGraduationCapLine from '~icons/ri/graduation-cap-line';
 import RiArrowRightLine from '~icons/ri/arrow-right-line';
 import RiArrowRightSLine from '~icons/ri/arrow-right-s-line';
 import RiArrowUpLine from '~icons/ri/arrow-up-line';
@@ -116,8 +114,6 @@ import RawArchiveLine from '~icons/ri/archive-line?raw';
 import RawArrowDownLine from '~icons/ri/arrow-down-line?raw';
 import RawArrowDownSLine from '~icons/ri/arrow-down-s-line?raw';
 import RawArrowGoBackLine from '~icons/ri/arrow-go-back-line?raw';
-import RawBookLine from '~icons/ri/book-line?raw';
-import RawGraduationCapLine from '~icons/ri/graduation-cap-line?raw';
 import RawArrowRightLine from '~icons/ri/arrow-right-line?raw';
 import RawArrowRightSLine from '~icons/ri/arrow-right-s-line?raw';
 import RawArrowUpLine from '~icons/ri/arrow-up-line?raw';
@@ -195,8 +191,6 @@ export type IconName =
   | 'arrow-up'
   | 'arrow-down'
   | 'arrow-right'
-  | 'book'
-  | 'graduation-cap'
   | 'minus'
   | 'panel-collapse'
   | 'panel-expand'
@@ -281,8 +275,6 @@ export const ICONS: Record<IconName, IconEntry> = {
   'arrow-up': entry(RiArrowUpLine, RawArrowUpLine),
   'arrow-down': entry(RiArrowDownLine, RawArrowDownLine),
   'arrow-right': entry(RiArrowRightLine, RawArrowRightLine),
-  book: entry(RiBookLine, RawBookLine),
-  'graduation-cap': entry(RiGraduationCapLine, RawGraduationCapLine),
   minus: entry(RiSubtractLine, RawSubtractLine),
   'panel-collapse': entry(TablerSidebarLeftCollapse, RawTablerSidebarLeftCollapse),
   'panel-expand': entry(TablerSidebarLeftExpand, RawTablerSidebarLeftExpand),
@@ -420,7 +412,6 @@ export const ICON_GROUPS: ReadonlyArray<readonly [string, readonly IconName[]]> 
     ],
   ],
   ['Communication', ['message', 'mail', 'user']],
-  ['Learning', ['book', 'graduation-cap']],
   [
     'Status & media',
     [

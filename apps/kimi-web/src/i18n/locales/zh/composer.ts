@@ -24,6 +24,6 @@ export default {
   emptyConversation: '还没有消息 —— 在下方输入开始对话',
   quickStartPlaceholder: '输入消息开始新对话…',
   thinkingSuffix: ' · 思考',
-  thinkingSuffixEffort: ' · {level}',
+  thinkingSuffixEffort: ' · 思考: {level}',
 
 } as const;

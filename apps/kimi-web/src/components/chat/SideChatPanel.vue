@@ -176,7 +176,7 @@ function autosize(): void {
   min-width: 0;
   resize: none;
   border: 1px solid var(--line);
-  border-radius: var(--r-sm, 8px);
+  border-radius: var(--radius-md);
   padding: 7px 9px;
   background: var(--bg);
   color: var(--color-text);
@@ -193,7 +193,7 @@ function autosize(): void {
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: var(--r-sm, 8px);
+  border-radius: var(--radius-md);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
   cursor: pointer;

@@ -619,10 +619,10 @@ onUnmounted(() => {
   padding: 6px 10px;
   font-family: var(--mono);
   font-size: var(--ui-font-size-xs);
-  color: #b3261e;
-  background: rgba(179, 38, 30, 0.08);
-  border: 1px solid rgba(179, 38, 30, 0.25);
-  border-radius: 3px;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger-bd);
+  border-radius: var(--radius-xs);
 }
 .actions {
   display: flex;

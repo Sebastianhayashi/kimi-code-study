@@ -1,5 +1,14 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_KIMI_PRODUCT?: string;
+  readonly VITE_STUDY_WORKSPACE_ROOT?: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 // Injected by Vite `define` (see vite.config.ts): the dev proxy's upstream
 // daemon target, so the UI can display which daemon it actually talks to.
 // In production builds this is still defined but unused (same-origin daemon).

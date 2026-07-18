@@ -536,7 +536,7 @@ function copyDiff(code: string, idx: number) {
 .md :deep(h4) {
   color: var(--color-text);
   font-optical-sizing: auto;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   margin: 0.85em 0 0.35em;
   line-height: var(--leading-tight);
 }

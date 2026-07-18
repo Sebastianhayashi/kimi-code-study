@@ -27,7 +27,7 @@ const props = defineProps<{
   queued?: QueuedPromptView[];
   searchFiles?: (q: string) => Promise<FileItem[]>;
   uploadImage?: (file: Blob, name?: string) => Promise<{ fileId: string; name: string; mediaType: string } | null>;
-  status: ConversationStatus;
+  status?: ConversationStatus;
   thinking?: ThinkingLevel;
   planMode?: boolean;
   swarmMode?: boolean;

@@ -34,6 +34,7 @@ import {
   STORAGE_KEYS,
 } from '../../lib/storage';
 import { parseDiff } from '../../lib/parseDiff';
+import { coerceThinkingForModel } from '../../lib/modelThinking';
 import { sessionExportTraceToJsonl, traceKeyEvent } from '../../debug/trace';
 import { readSessionIdFromLocation, sessionUrl } from '../../lib/sessionRoute';
 import type { SessionUrlMode } from '../../lib/sessionRoute';
@@ -596,10 +597,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
       // daemons while /sessions still works. Fall back to the legacy global
       // walk so history still shows and mergedWorkspaces can derive workspaces
       // from session cwds, instead of rendering a blank sidebar.
-      const fallback = await listAllSessionsGlobal().catch((err) => {
-        console.warn('[kimi-web] global session fallback load failed', err);
-        return [] as AppSession[];
-      });
+      const fallback = await listAllSessionsGlobal().catch(() => [] as AppSession[]);
       rawState.sessionsHasMoreByWorkspace = {};
       rawState.sessionsCursorByWorkspace = {};
       rawState.sessionsInitialCountByWorkspace = {};
@@ -608,13 +606,10 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
     }
     const pages = await Promise.all(
       workspaces.map((w) =>
-        loadInitialSessionsForWorkspace(w.id).catch((err) => {
-          console.warn('[kimi-web] initial session load failed for workspace', w.id, err);
-          return {
-            workspaceId: w.id,
-            page: { items: [] as AppSession[], hasMore: false },
-          };
-        }),
+        loadInitialSessionsForWorkspace(w.id).catch(() => ({
+          workspaceId: w.id,
+          page: { items: [] as AppSession[], hasMore: false },
+        })),
       ),
     );
     const loaded: AppSession[] = [];
@@ -699,10 +694,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
    *  first search; a no-op once the full list is loaded. */
   async function loadAllSessions(): Promise<void> {
     if (rawState.sessionsFullyLoaded) return;
-    const sessions = await listAllSessionsGlobal().catch((err) => {
-      console.warn('[kimi-web] loadAllSessions failed; search covers only loaded sessions', err);
-      return null;
-    });
+    const sessions = await listAllSessionsGlobal().catch(() => null);
     if (sessions === null) return;
     setSessionsPreservingLiveUsage(sessions);
     rawState.sessionsFullyLoaded = true;
@@ -1081,8 +1073,11 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
       // there is nothing to persist for it.
       const planMode = rawState.planModeBySession[sid] ?? false;
       const swarmMode = rawState.swarmModeBySession[sid] ?? false;
-      // Thinking is persisted verbatim — whatever the user picked is what the
-      // first skill turn runs at (same as a normal prompt, and the TUI).
+      // Coerce thinking against the new session's model the same way the
+      // first-prompt path does (coercePromptThinking below): a value carried
+      // over from another/default model (e.g. 'max' from an effort model) would
+      // otherwise be persisted verbatim, and the first skill turn would run at
+      // a level the UI wouldn't send for this model.
       const promptSession = rawState.sessions.find((s) => s.id === sid);
       const model =
         (promptSession?.model && promptSession.model.length > 0
@@ -1094,7 +1089,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
           planMode,
           swarmMode,
           permissionMode: rawState.permission,
-          thinking: rawState.thinking,
+          thinking: coercePromptThinking(model),
         },
         sid,
       );
@@ -1149,9 +1144,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
       upsertWorkspacePreserveOrder(ws);
       openWorkspaceDraft(ws.id);
       return true;
-    } catch (err) {
-      // The caller shows an inline error in the picker; keep the cause in the log.
-      console.warn('[kimi-web] addWorkspaceByPath failed for', trimmed, err);
+    } catch {
       return false;
     }
   }
@@ -1316,6 +1309,22 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
     }
   }
 
+  // Coerce the persisted thinking level against the prompt's target model before
+  // submitting, so a stale value carried over from another session (e.g. 'max'
+  // from an effort model) isn't sent to a model that doesn't declare it. The
+  // composer already renders the coerced value; this keeps the submitted level
+  // in sync with what's displayed. Falls back to the raw level when the model
+  // catalog hasn't loaded yet (coerceThinkingForModel preserves it).
+  function coercePromptThinking(model: string | undefined) {
+    const promptModel =
+      model === undefined
+        ? undefined
+        : modelProvider.models.value.find(
+            (m) => m.model === model || m.id === model || m.displayName === model,
+          );
+    return coerceThinkingForModel(promptModel, rawState.thinking);
+  }
+
   /** Internal: submit a prompt to a specific session, bypassing the queue check.
       Returns true when the daemon accepted the prompt. */
   async function submitPromptInternal(sid: string, text: string, attachments?: PromptAttachment[]): Promise<boolean> {
@@ -1388,9 +1397,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
       const result = await api.submitPrompt(sid, {
         content,
         model,
-        // Verbatim: the stored level is submitted as-is (same as the TUI) —
-        // no coercion against the prompt's target model.
-        thinking: rawState.thinking,
+        thinking: coercePromptThinking(model),
         permissionMode: rawState.permission,
         planMode,
         swarmMode,
@@ -1530,8 +1537,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
       const result = await api.submitPrompt(sid, {
         content,
         model,
-        // Verbatim, same as a normal send (see submitPromptInternal).
-        thinking: rawState.thinking,
+        thinking: coercePromptThinking(model),
         permissionMode: rawState.permission,
         planMode: rawState.planModeBySession[sid] ?? false,
         swarmMode: rawState.swarmModeBySession[sid] ?? false,
@@ -2090,9 +2096,8 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
     // Best-effort registry cleanup; ignore failures (the hide already took effect).
     try {
       await getKimiWebApi().deleteWorkspace(id);
-    } catch (err) {
+    } catch {
       // registry delete is optional — the sidebar hide is what the user sees.
-      console.warn('[kimi-web] deleteWorkspace registry cleanup failed for', id, err);
     }
     rawState.workspaces = rawState.workspaces.filter((w) => w.id !== id && w.root !== root);
     if (removingActiveWorkspace || activeSessionInRemovedWorkspace) {
@@ -2386,8 +2391,7 @@ export function useWorkspaceState(rawState: ExtendedState, deps: UseWorkspaceSta
         size: result.size,
         lineCount: result.lineCount,
       };
-    } catch (err) {
-      console.warn('[kimi-web] readFileContent failed for', path, err);
+    } catch {
       return null;
     }
   }

@@ -110,9 +110,8 @@ const ONBOARDED_STORAGE_KEY = STORAGE_KEYS.onboarded;
 // 'off'/'on', or a model-declared level (e.g. 'low'/'high'/'max'). Since the
 // set of legal levels comes from each model's support_efforts, we can't
 // whitelist values — only guard against corrupted localStorage with a charset
-// + length check. An absent/invalid value means the user never picked a level;
-// loadModels() then pins the active model's catalog default as the concrete
-// in-memory value (see useModelProviderState).
+// + length check. coerceThinkingForModel adapts the loaded value to the active
+// model once the catalog is available.
 const PERSISTED_THINKING_LEVEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$/;
 
 // Appearance types + logic live in ./client/useAppearance; re-exported here so
@@ -146,14 +145,14 @@ function savePermissionToStorage(mode: PermissionMode): void {
   }
 }
 
-function loadThinkingFromStorage(): ThinkingLevel | undefined {
+function loadThinkingFromStorage(): ThinkingLevel {
   try {
     const v = safeGetString(THINKING_STORAGE_KEY);
     if (v && PERSISTED_THINKING_LEVEL_RE.test(v)) return v as ThinkingLevel;
   } catch {
     // ignore
   }
-  return undefined;
+  return 'high';
 }
 
 function saveThinkingToStorage(v: ThinkingLevel): void {
@@ -304,11 +303,7 @@ export interface ExtendedState extends KimiClientState {
   workspaceName: string;
   connection: ConnectionState;
   permission: PermissionMode;
-  /** The thinking level shown and submitted. Undefined only transiently —
-   *  before the model catalog loads or when the active model is unknown;
-   *  loadModels() pins the active model's catalog default as a concrete
-   *  in-memory value so display and submission always agree. */
-  thinking: ThinkingLevel | undefined;
+  thinking: ThinkingLevel;
   /** Plan-mode toggle per session. Bound to a session (not global) so toggling
    *  it in one session does not affect another. */
   planModeBySession: Record<string, boolean>;
@@ -696,12 +691,10 @@ async function refreshSessionGoal(sessionId: string): Promise<void> {
  *  session and immediately persisting its draft modes, so a concurrent session
  *  switch can't write the patch to the wrong session.
  *
- *  Returns the update promise. Failures are surfaced via pushOperationFailure
- *  (the UI already updated optimistically, so the user must be told when the
- *  daemon did not apply the change); the promise itself never rejects. Most
- *  callers fire-and-forget via `void persistSessionProfile(...)`; call sites
- *  that must order strictly after the profile (e.g. a skill activation that
- *  can't carry its own modes) await it. */
+ *  Returns the update promise (errors swallowed — the UI already updated
+ *  optimistically). Most callers fire-and-forget via `void persistSessionProfile(...)`;
+ *  call sites that must order strictly after the profile (e.g. a skill
+ *  activation that can't carry its own modes) await it. */
 function persistSessionProfile(patch: {
   model?: string;
   permissionMode?: string;
@@ -716,10 +709,8 @@ function persistSessionProfile(patch: {
   // Promise.resolve wrap: tolerate a sync/undefined return (e.g. test mocks).
   return Promise.resolve(getKimiWebApi().updateSession(sid, patch))
     .then(() => refreshSessionStatus(sid))
-    .catch((err) => {
-      // Local state already reflects the change; tell the user (and the log)
-      // that the daemon did not persist it.
-      pushOperationFailure('persistSessionProfile', err, { sessionId: sid });
+    .catch(() => {
+      /* ignore — local state already reflects the change */
     });
 }
 
@@ -1232,21 +1223,6 @@ function pushOperationFailure(
   err: unknown,
   opts?: { title?: string; message?: string; sessionId?: string },
 ): void {
-  // Always-on logging: a surfaced failure must be diagnosable from the console
-  // and from the exported web log (session export), not just from the toast.
-  console.error(`[kimi-web] operation failed: ${operation}`, err);
-  const api = isDaemonApiError(err);
-  const network = isDaemonNetworkError(err);
-  traceKeyEvent('operation:failed', {
-    sessionId: opts?.sessionId,
-    status: 'failed',
-    operation,
-    errorName: err instanceof Error ? err.name : typeof err,
-    errorCode: api ? err.code : undefined,
-    requestId: api || network ? err.requestId : undefined,
-    phase: network ? err.phase : undefined,
-    httpStatus: network ? err.status : undefined,
-  });
   pushWarning(operationFailureNotice(operation, err, opts));
 }
 
@@ -1878,6 +1854,7 @@ const sideChat = useSideChat(rawState, {
   nextOptimisticMsgId,
   connectEventsIfNeeded,
   getEventConn: () => eventConn,
+  models: () => modelProvider.models.value,
 });
 
 const activeAppTasks = computed<AppTask[]>(() => {
@@ -1968,7 +1945,7 @@ function clearDangerousBypassAuth(): void {
 }
 
 const permission = computed<PermissionMode>(() => rawState.permission);
-const thinking = computed<ThinkingLevel | undefined>(() => rawState.thinking);
+const thinking = computed<ThinkingLevel>(() => rawState.thinking);
 // Mode toggles reflect the ACTIVE session (or the draft when no session is
 // open). Each session keeps its own value in the *BySession maps above.
 const planMode = computed<boolean>(() => {

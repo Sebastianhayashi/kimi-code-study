@@ -119,7 +119,7 @@ watch(
 .prev {
   color: var(--color-text-faint);
   font: var(--text-base)/var(--leading-relaxed) var(--font-ui);
-  font-weight: 425;
+  font-weight: var(--weight-regular);
   white-space: pre-wrap;
   word-break: break-word;
   display: block;
@@ -127,7 +127,7 @@ watch(
 
 .tc {
   font: var(--text-base)/var(--leading-relaxed) var(--font-ui);
-  font-weight: 425;
+  font-weight: var(--weight-regular);
   color: var(--color-text-muted);
   white-space: pre-wrap;
   word-break: break-word;

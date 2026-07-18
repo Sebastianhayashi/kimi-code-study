@@ -417,6 +417,7 @@ html[data-color-scheme="dark"][data-accent="mono"] {
      tab is visually distinct from production. Referenced by Sidebar's
      `.ch-logo.is-dev` override of `--logo`. Scheme-independent on purpose. */
   --color-logo-dev: #f5b301;
+  --color-logo-dev-text: #3a2a00;
 
   /* -- spacing (4px grid) -------------------------------------------------- */
   --space-1: 4px;

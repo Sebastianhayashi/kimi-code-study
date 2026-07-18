@@ -1225,7 +1225,7 @@ function selectModel(modelId: string): void {
   --composer-send-inset: var(--space-2);
   position: relative;
   border: 1px solid var(--line);
-  border-radius: calc((var(--composer-send-size) / 2) + var(--composer-send-inset) + var(--space-3));
+  border-radius: var(--radius-2xl);
   corner-shape: superellipse(1.5);
   background: var(--bg);
   box-shadow: var(--shadow-md);

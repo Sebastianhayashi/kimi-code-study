@@ -1596,7 +1596,7 @@ defineExpose({ loadComposerForEdit, focusComposer });
 .empty-hint-title {
   font-size: calc(var(--ui-font-size) + 16px);
   font-optical-sizing: auto;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .empty-hint-title.is-starting {
   display: inline-flex;
@@ -1721,7 +1721,7 @@ defineExpose({ loadComposerForEdit, focusComposer });
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-xs);
-  font-weight: 475;
+  font-weight: var(--weight-medium);
   color: var(--muted);
 }
 .ws-pick-item.ws-pick-more {
