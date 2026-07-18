@@ -65,6 +65,8 @@ class FakeRuntime implements StudyRuntimePort {
   watchDelay: Promise<void> | undefined;
   answerDelay: Promise<void> | undefined;
   generateError: Error | undefined;
+  uploadImpl: (() => Promise<{ fileId: string; name: string; mediaType: string; size: number; sourceRevision: string }>) | undefined;
+  startImpl: ((input: StartCourseInput) => Promise<StudyCourseBinding>) | undefined;
   uploaded = {
     fileId: 'file-1',
     name: 'Book.pdf',
@@ -79,8 +81,9 @@ class FakeRuntime implements StudyRuntimePort {
   async listCourses(): Promise<StudyCourseBinding[]> {
     return this.currentBinding === undefined ? [] : [this.currentBinding];
   }
-  async uploadMaterial(): Promise<typeof this.uploaded> { return this.uploaded; }
+  async uploadMaterial(): Promise<typeof this.uploaded> { if (this.uploadImpl !== undefined) return this.uploadImpl(); return this.uploaded; }
   async startCourse(input: StartCourseInput): Promise<StudyCourseBinding> {
+    if (this.startImpl !== undefined) { const result = await this.startImpl(input); this.startCalls.push(input); this.currentBinding = result; this.snapshots.set(input.snapshot.courseId, input.snapshot); return result; }
     this.startCalls.push(input);
     this.currentBinding = binding(input.snapshot.courseId);
     // The teaching engine writes its first artifacts asynchronously; by the
@@ -494,7 +497,7 @@ describe('StudyProductController concurrency guards', () => {
     expect(runtime.loadCalls).toHaveLength(loadsAfterOpen);
 
     runtime.handlersByCourse.get('course-b')?.onArtifactChanged();
-    await vi.waitFor(() => expect(runtime.loadCalls).toHaveLength(loadsAfterOpen + 1));
+    await vi.waitFor(() => { expect(runtime.loadCalls).toHaveLength(loadsAfterOpen + 1); });
     expect(runtime.loadCalls.at(-1)).toBe('course-b');
   });
 
@@ -606,4 +609,54 @@ describe('StudyProductController concurrency guards', () => {
     expect(controller.view.stage).toBe('error');
     expect(controller.view.issues[0]?.code).toBe('artifact_not_found');
   });
+
+  it('invokes startCourse exactly once for upload + quick mode', async () => {
+    const runtime = new FakeRuntime();
+    const controller = makeController(runtime);
+    await controller.upload(new File(['book'], 'Book.pdf'));
+    expect(controller.view.stage).toBe('mode_selection');
+
+    await controller.selectMode('quick');
+    expect(runtime.startCalls).toHaveLength(1);
+
+    // Re-calling selectMode with quick again is rejected by the domain event
+    await expect(controller.selectMode('quick')).rejects.toThrow();
+    expect(runtime.startCalls).toHaveLength(1);
+    expect(controller.view.stage).toBe('working'); // Sync domain rejection before try/catch
+  });
+
+  it('does not call startCourse when the upload itself fails', async () => {
+    const runtime = new FakeRuntime();
+    runtime.uploadImpl = () => { throw new Error('upload failure'); };
+    const controller = makeController(runtime);
+    await expect(controller.upload(new File(['book'], 'Book.pdf'))).rejects.toThrow('upload failure');
+    expect(runtime.startCalls).toHaveLength(0);
+    expect(controller.view.stage).toBe('error');
+  });
+
+  it('preserves a recoverable error state when selectMode fails', async () => {
+    const runtime = new FakeRuntime();
+    runtime.startImpl = () => { throw new Error('start refused'); };
+    const controller = makeController(runtime);
+    await controller.upload(new File(['book'], 'Book.pdf'));
+    await expect(controller.selectMode('quick')).rejects.toThrow('start refused');
+
+    expect(controller.view.stage).toBe('error');
+    expect(controller.view.issues).toHaveLength(1);
+    expect(controller.view.snapshot).not.toBeNull();
+  });
+
+  it('keeps historical course open path unchanged after auto-Quick changes', async () => {
+    const runtime = new FakeRuntime();
+    runtime.snapshots.set('course-historic', quickSnapshot('course-historic'));
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const controller = makeController(runtime);
+
+    const opened = await controller.open('course-historic');
+    expect(opened).toBe(true);
+    expect(controller.view.binding?.courseId).toBe('course-historic');
+    expect(controller.view.snapshot?.courseId).toBe('course-historic');
+    expect(runtime.startCalls).toHaveLength(0);
+  });
+
 });

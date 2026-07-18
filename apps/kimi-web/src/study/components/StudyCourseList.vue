@@ -133,6 +133,6 @@ function statusText(course: CourseSummary): string {
 
 .course-status-review {
   color: var(--color-accent);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 </style>

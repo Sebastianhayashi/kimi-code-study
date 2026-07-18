@@ -933,6 +933,21 @@ export class DaemonKimiWebApi implements KimiWebApi {
     };
   }
 
+  /** POST /sessions/{id}/fs:mkdir — create a directory. FS_ALREADY_EXISTS (40919)
+   *  is treated as success (the directory is ready to use). */
+  async makeDirectory(
+    sessionId: string,
+    input: { path: string },
+  ): Promise<{ made: boolean; path: string }> {
+    const data = await this.http.post<{ made: boolean; path: string }>(
+      `/sessions/${encodeURIComponent(sessionId)}/fs:mkdir`,
+      { path: input.path },
+      { allowCodes: [40919] }, // FS_ALREADY_EXISTS
+    );
+    return { made: data?.made ?? false, path: input.path };
+  }
+
+
   async readFile(
     sessionId: string,
     input: { path: string; offset?: number; length?: number },

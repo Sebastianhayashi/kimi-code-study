@@ -96,7 +96,7 @@ function formatUpdated(iso: string): string {
           @keydown.enter="emit('open', course.courseId)"
         >
           <div class="study-course-row">
-            <Icon name="book" size="md" />
+            <Icon name="file-text" size="md" />
             <div class="study-course-info">
               <span class="study-course-title">{{ course.title }}</span>
               <span class="study-course-meta">{{ formatUpdated(course.updatedAt) }}</span>

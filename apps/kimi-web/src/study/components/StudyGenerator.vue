@@ -375,7 +375,7 @@ function openLesson(file: string): void {
   align-items: center;
   gap: var(--space-2);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   margin: 0;
 }
 
@@ -388,14 +388,14 @@ function openLesson(file: string): void {
 
 .reading-bar {
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--color-surface-sunken);
   overflow: hidden;
 }
 
 .reading-bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--color-accent);
   transition: width 0.4s ease;
 }
@@ -423,7 +423,7 @@ function openLesson(file: string): void {
 
 .course-title {
   font-size: 22px;
-  font-weight: 700;
+  font-weight: var(--weight-semibold);
   margin: 0 0 var(--space-3);
   line-height: 1.3;
 }
@@ -489,7 +489,7 @@ function openLesson(file: string): void {
   cursor: pointer;
   list-style: none;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .chapter-summary::-webkit-details-marker {
@@ -549,7 +549,7 @@ function openLesson(file: string): void {
 
 .published-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: var(--color-success);
   margin-bottom: var(--space-2);
 }
@@ -601,7 +601,7 @@ function openLesson(file: string): void {
 .chat-rail-title {
   flex: 1;
   min-width: 0;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -617,8 +617,8 @@ function openLesson(file: string): void {
 /* Coursebox generate button: centred pill, min(400px,100%) × 44, radius 50. */
 .primary-wide {
   width: min(400px, 100%);
-  border-radius: 50px !important;
-  font-weight: 600 !important;
+  border-radius: var(--radius-full);
+  font-weight: var(--weight-semibold) !important;
   transition:
     background 0.15s,
     transform 0.1s !important;

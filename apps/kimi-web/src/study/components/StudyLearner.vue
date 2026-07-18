@@ -254,7 +254,7 @@ function backToOutline(): void {
 
 .toc-title {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: var(--color-text-faint);
   padding: 0 6px;
 }
@@ -295,7 +295,7 @@ function backToOutline(): void {
 .toc-item-active {
   background: var(--color-selected);
   color: var(--color-text);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .toc-no {
@@ -334,7 +334,7 @@ function backToOutline(): void {
 
 .lesson-band-label {
   flex: none;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   color: var(--color-accent);
 }
 
@@ -367,7 +367,7 @@ function backToOutline(): void {
   background: var(--color-bg);
   border-left: 1px solid var(--color-line);
   box-shadow: -8px 0 24px rgb(0 0 0 / 8%);
-  z-index: 20;
+  z-index: 1;
 }
 
 .tutor-slide-enter-active,
@@ -391,7 +391,7 @@ function backToOutline(): void {
 
 .tutor-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .tutor-context {
