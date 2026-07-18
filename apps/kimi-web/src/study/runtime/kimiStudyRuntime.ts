@@ -21,6 +21,7 @@ import type {
 import {
   buildSkillActivationArgs,
 } from '../domain/studyPolicy';
+import { isLessonArtifactPath } from '../domain/lessonRevision';
 import type { StudyCourseBinding, StudyOperationMarker } from './courseRegistry';
 import { StudyCourseRegistry } from './courseRegistry';
 import type {
@@ -70,6 +71,16 @@ function assertArtifactPath(path: string): void {
   }
 }
 
+function assertLessonOperation(lessonPath: string, baseRevision: string, operationId: string): void {
+  if (!isLessonArtifactPath(lessonPath)) throw new Error('Invalid Kimi Study lesson path.');
+  if (!/^fnv1a32:[0-9a-f]{8}$/.test(baseRevision)) {
+    throw new Error('Invalid Kimi Study lesson revision.');
+  }
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,127}$/.test(operationId)) {
+    throw new Error('Invalid Kimi Study lesson operation id.');
+  }
+}
+
 /** Small deterministic digest for idempotent plan-edit operation ids. */
 function operationDigest(text: string): string {
   let hash = 5381;
@@ -95,13 +106,15 @@ function isOperationMessage(message: AppMessage, expected: string): boolean {
 }
 
 /** Bounded migration aliases: newer Skills can resume old pinned courses.
- * Current v3 profiles require the exact v3 marker so quality gates cannot be
+ * Current v4 profiles require the exact v4 marker so quality and revision gates cannot be
  * silently downgraded by an older installation. */
 const COMPATIBLE_CONTRACT_ALIASES: Readonly<Record<string, readonly string[]>> = {
-  'teach-quick-v1': ['teach-quick-v2', 'teach-quick-v3'],
-  'teach-quick-v2': ['teach-quick-v1', 'teach-quick-v3'],
-  'teach-ria-v1': ['teach-ria-v2', 'teach-ria-v3'],
-  'teach-ria-v2': ['teach-ria-v1', 'teach-ria-v3'],
+  'teach-quick-v1': ['teach-quick-v2', 'teach-quick-v3', 'teach-quick-v4'],
+  'teach-quick-v2': ['teach-quick-v1', 'teach-quick-v3', 'teach-quick-v4'],
+  'teach-quick-v3': ['teach-quick-v4'],
+  'teach-ria-v1': ['teach-ria-v2', 'teach-ria-v3', 'teach-ria-v4'],
+  'teach-ria-v2': ['teach-ria-v1', 'teach-ria-v3', 'teach-ria-v4'],
+  'teach-ria-v3': ['teach-ria-v4'],
 };
 
 export function installedSkillMatches(
@@ -286,7 +299,7 @@ export class KimiStudyRuntime implements StudyRuntimePort {
     connection = this.api.connectEvents({
       onEvent: (event) => this.handleEvent(event, binding.sessionId, handlers),
       onResync: (sessionId) => {
-        if (sessionId === binding.sessionId) handlers.onArtifactChanged();
+        if (sessionId === binding.sessionId) handlers.onArtifactChanged('resync');
       },
       onError: (_code, message, fatal) => {
         if (fatal) handlers.onPolicyViolation(message);
@@ -389,6 +402,40 @@ export class KimiStudyRuntime implements StudyRuntimePort {
     });
   }
 
+  async requestLessonChange(
+    courseId: string,
+    lessonPath: string,
+    baseRevision: string,
+    instruction: string,
+    operationId: string,
+  ): Promise<void> {
+    const text = instruction.trim();
+    if (text.length === 0) throw new Error('Lesson change request is empty.');
+    await this.submitLessonOperation(
+      courseId,
+      lessonPath,
+      baseRevision,
+      operationId,
+      'revise',
+      text,
+    );
+  }
+
+  async requestLessonRegeneration(
+    courseId: string,
+    lessonPath: string,
+    baseRevision: string,
+    operationId: string,
+  ): Promise<void> {
+    await this.submitLessonOperation(
+      courseId,
+      lessonPath,
+      baseRevision,
+      operationId,
+      'regenerate',
+    );
+  }
+
   async readCourseText(courseId: string, path: string, maxBytes = 262144): Promise<StudyTextLoad> {
     assertArtifactPath(path);
     const binding = await this.resumeCourse(courseId);
@@ -478,6 +525,61 @@ export class KimiStudyRuntime implements StudyRuntimePort {
       }
     }
     return materials;
+  }
+
+  private async submitLessonOperation(
+    courseId: string,
+    lessonPath: string,
+    baseRevision: string,
+    operationId: string,
+    kind: 'revise' | 'regenerate',
+    instruction?: string,
+  ): Promise<void> {
+    assertCourseId(courseId);
+    assertLessonOperation(lessonPath, baseRevision, operationId);
+    const binding = this.requireBinding(courseId);
+    const operation = `${courseId}:lesson-${kind}:${operationId}`;
+    await this.coalesce(operation, async () => {
+      if (binding.operations[operation] !== undefined
+        || await this.sessionHasOperation(binding.sessionId, operation)) return;
+      const action = kind === 'revise'
+        ? `Revise only the published lesson ${lessonPath} from the learner request: ${instruction ?? ''}`
+        : `Regenerate only the published lesson ${lessonPath}.`;
+      const submitted = await this.api.submitPrompt(binding.sessionId, {
+        content: [{
+          type: 'text',
+          text: [
+            action,
+            `Its required base content revision is ${baseRevision}.`,
+            'Keep the course id, lesson path, lesson title, source anchors, plan, generation counts, and every other lesson unchanged.',
+            'Follow the installed Skill lesson-revision workflow: reopen the cited source, validate a candidate, then use the guarded atomic publisher immediately before replacement.',
+            'If the base revision is stale or any gate fails, do not replace the current lesson.',
+          ].join(' '),
+        }],
+        metadata: {
+          kimiStudyOperationId: operation,
+          kimiStudyCourseId: courseId,
+          kimiStudyLessonOperation: kind,
+          kimiStudyLessonPath: lessonPath,
+          kimiStudyLessonBaseRevision: baseRevision,
+        },
+        permissionMode: 'auto',
+        planMode: false,
+        swarmMode: false,
+      });
+      this.registry.saveCourse({
+        ...binding,
+        operations: {
+          ...binding.operations,
+          [operation]: {
+            operationId: operation,
+            promptId: submitted.promptId,
+            startedAt: this.now(),
+          },
+        },
+        updatedAt: this.now(),
+      });
+    });
   }
 
   private async ensureBinding(
@@ -692,7 +794,7 @@ export class KimiStudyRuntime implements StudyRuntimePort {
       handlers.onQuestionClosed(event.questionId);
     }
     if (event.type === 'sessionStatusChanged' && event.status === 'idle') {
-      handlers.onArtifactChanged();
+      handlers.onArtifactChanged('session_idle');
     }
     if (event.type === 'approvalRequested') {
       handlers.onPolicyViolation('A developer approval escaped automatic Study policy.');

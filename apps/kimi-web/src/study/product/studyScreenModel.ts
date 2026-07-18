@@ -30,7 +30,7 @@ export type StudyScreen =
 
 export interface StudyScreenModel {
   readonly screen: StudyScreen;
-  /** True while upload, start, or an outline replacement is in flight. */
+  /** True while upload, start, outline, or current-lesson replacement is in flight. */
   readonly busy: boolean;
   /** Provider login is missing: generation is impossible, browsing is not. */
   readonly authRequired: boolean;
@@ -68,7 +68,9 @@ export function deriveStudyScreen(view: StudyProductView): StudyScreenModel {
   const busy = view.stage === 'uploading'
     || view.stage === 'starting'
     || view.planChange.status === 'submitting'
-    || view.planChange.status === 'waiting';
+    || view.planChange.status === 'waiting'
+    || view.lessonOperation.status === 'submitting'
+    || view.lessonOperation.status === 'waiting';
   const authRequired = view.readiness?.auth === 'required';
   const questionOpen = view.question !== null;
 

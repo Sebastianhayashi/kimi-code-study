@@ -54,7 +54,9 @@ export function useStudyProduct(options: UseStudyProductOptions = {}) {
     isBusy: computed(() =>
       ['uploading', 'starting'].includes(current.value.stage)
       || current.value.planChange.status === 'submitting'
-      || current.value.planChange.status === 'waiting'),
+      || current.value.planChange.status === 'waiting'
+      || current.value.lessonOperation.status === 'submitting'
+      || current.value.lessonOperation.status === 'waiting'),
     upload: controller.upload.bind(controller),
     selectMode: controller.selectMode.bind(controller),
     startCatalog: controller.startCatalog.bind(controller),
@@ -74,6 +76,8 @@ export function useStudyProduct(options: UseStudyProductOptions = {}) {
     sendTutorMessage: controller.sendTutorMessage.bind(controller),
     listTutorExchanges: controller.listTutorExchanges.bind(controller),
     requestPlanChange: controller.requestPlanChange.bind(controller),
+    requestLessonChange: controller.requestLessonChange.bind(controller),
+    requestLessonRegeneration: controller.requestLessonRegeneration.bind(controller),
   };
 }
 

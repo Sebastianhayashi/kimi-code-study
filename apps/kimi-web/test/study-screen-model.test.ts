@@ -82,6 +82,7 @@ function view(patch: Partial<StudyProductView>): StudyProductView {
     connected: true,
     issues: [],
     planChange: { status: 'idle' },
+    lessonOperation: { status: 'idle' },
     ...patch,
   };
 }
@@ -122,6 +123,26 @@ describe('deriveStudyScreen', () => {
       planChange: { status: 'waiting', baseRevision: 'plan-v1' },
     }));
     expect(model.screen).toBe('outline');
+    expect(model.busy).toBe(true);
+  });
+
+  it('keeps the reader visible and busy while its current lesson is replaced', () => {
+    const model = deriveStudyScreen(view({
+      stage: 'ready',
+      snapshot: readySnapshot({
+        status: 'ready',
+        planRevision: 'plan-v1',
+        publishedLessons: 3,
+        totalLessons: 3,
+      }),
+      lessonOperation: {
+        status: 'waiting',
+        kind: 'revise',
+        path: 'lessons/0001-feedback.html',
+        baseRevision: 'fnv1a32:12345678',
+      },
+    }));
+    expect(model.screen).toBe('learning');
     expect(model.busy).toBe(true);
   });
 

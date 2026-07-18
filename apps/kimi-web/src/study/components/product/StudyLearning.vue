@@ -37,6 +37,7 @@ const { t } = useI18n();
 const product = inject(STUDY_PRODUCT_INJECTION_KEY)!;
 
 const showUpgrade = computed(() => props.snapshot.profile?.mode === 'quick');
+const lessonOperation = computed(() => product.view.value.lessonOperation);
 
 const lessonsLabel = computed(() =>
   t('study.product.lessonsReady', {
@@ -56,6 +57,9 @@ const treeUnavailable = ref(false);
 const treeNavOpen = ref(false);
 const currentPath = ref<string | undefined>(undefined);
 const currentLesson = ref<LessonSource | undefined>(undefined);
+const lessonEditorOpen = ref(false);
+const lessonInstruction = ref('');
+const regenerationConfirmOpen = ref(false);
 let treeLoadEpoch = 0;
 
 async function publishTree(entries: readonly LessonEntry[], epoch: number): Promise<void> {
@@ -126,6 +130,11 @@ async function loadTree(): Promise<void> {
 }
 
 async function selectLesson(path: string): Promise<void> {
+  if (currentPath.value !== path) {
+    lessonEditorOpen.value = false;
+    lessonInstruction.value = '';
+    regenerationConfirmOpen.value = false;
+  }
   currentPath.value = path;
   if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) {
     treeNavOpen.value = false;
@@ -168,6 +177,46 @@ async function prevLesson(): Promise<void> {
 async function nextLesson(): Promise<void> {
   const entry = lessons.value[currentIndex.value + 1];
   if (entry !== undefined) await selectLesson(entry.path);
+}
+
+const currentLessonOperation = computed(() =>
+  lessonOperation.value.path === currentPath.value ? lessonOperation.value : undefined);
+
+const lessonCanChange = computed(() =>
+  currentPath.value !== undefined
+  && currentLesson.value?.state === 'ok'
+  && !props.busy);
+
+function toggleLessonEditor(): void {
+  lessonEditorOpen.value = !lessonEditorOpen.value;
+  regenerationConfirmOpen.value = false;
+}
+
+async function submitLessonChange(): Promise<void> {
+  const path = currentPath.value;
+  const instruction = lessonInstruction.value.trim();
+  if (path === undefined || instruction.length === 0 || props.busy) return;
+  try {
+    await product.requestLessonChange(path, instruction);
+  } catch {
+    // The controller exposes a recoverable failed state and keeps the reader.
+  }
+}
+
+function askToRegenerateLesson(): void {
+  regenerationConfirmOpen.value = true;
+  lessonEditorOpen.value = false;
+}
+
+async function regenerateLesson(): Promise<void> {
+  const path = currentPath.value;
+  if (path === undefined || props.busy) return;
+  regenerationConfirmOpen.value = false;
+  try {
+    await product.requestLessonRegeneration(path);
+  } catch {
+    // The controller exposes a recoverable failed state and keeps the reader.
+  }
 }
 
 // --- Tutor drawer: page-context questions, answer polling while waiting. ---
@@ -233,6 +282,18 @@ async function sendTutor(): Promise<void> {
 onMounted(() => { void loadTree(); });
 onUnmounted(stopTutorPolling);
 watch(() => props.snapshot.generation.publishedLessons, () => { void loadTree(); });
+watch(
+  () => [
+    lessonOperation.value.status,
+    lessonOperation.value.path,
+    lessonOperation.value.resultRevision,
+  ] as const,
+  ([status, path]) => {
+    if (status === 'succeeded' && path !== undefined && path === currentPath.value) {
+      void selectLesson(path);
+    }
+  },
+);
 </script>
 
 <template>
@@ -320,13 +381,110 @@ watch(() => props.snapshot.generation.publishedLessons, () => { void loadTree();
       </aside>
 
       <section class="study-learn-reader" :aria-label="t('study.lessonLabel')">
-        <StudyLessonReader
-          v-if="currentLesson"
-          :source="currentLesson"
-          :show-practice-action="false"
-        />
-        <div v-else class="study-learn-reader-empty">
-          <Spinner size="lg" />
+        <div v-if="currentLesson" class="study-lesson-tools">
+          <div class="study-lesson-tools-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              :disabled="!lessonCanChange"
+              @click="toggleLessonEditor"
+            >
+              <Icon name="pencil" size="sm" />
+              <span>{{ t('study.product.lessonReviseAction') }}</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              :disabled="!lessonCanChange"
+              @click="askToRegenerateLesson"
+            >
+              <Icon name="sparkles" size="sm" />
+              <span>{{ t('study.product.lessonRegenerateAction') }}</span>
+            </Button>
+          </div>
+
+          <form
+            v-if="lessonEditorOpen"
+            class="study-lesson-edit"
+            @submit.prevent="submitLessonChange"
+          >
+            <label class="study-lesson-edit-label" for="study-lesson-instruction">
+              {{ t('study.product.lessonReviseTitle') }}
+            </label>
+            <textarea
+              id="study-lesson-instruction"
+              v-model="lessonInstruction"
+              class="study-lesson-edit-input"
+              rows="2"
+              :disabled="busy"
+              :placeholder="t('study.product.lessonRevisePlaceholder')"
+            />
+            <p class="study-lesson-edit-example">{{ t('study.product.lessonReviseExample') }}</p>
+            <div class="study-lesson-edit-actions">
+              <Button variant="ghost" size="sm" type="button" :disabled="busy" @click="lessonEditorOpen = false">
+                {{ t('study.product.lessonActionCancel') }}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                type="submit"
+                :disabled="lessonInstruction.trim().length === 0"
+                :loading="currentLessonOperation?.status === 'submitting' || currentLessonOperation?.status === 'waiting'"
+              >
+                {{ t('study.product.lessonReviseSubmit') }}
+              </Button>
+            </div>
+          </form>
+
+          <div v-if="regenerationConfirmOpen" class="study-lesson-confirm">
+            <div>
+              <p class="study-lesson-confirm-title">{{ t('study.product.lessonRegenerateConfirmTitle') }}</p>
+              <p class="study-lesson-confirm-copy">{{ t('study.product.lessonRegenerateConfirmBody') }}</p>
+            </div>
+            <div class="study-lesson-edit-actions">
+              <Button variant="ghost" size="sm" :disabled="busy" @click="regenerationConfirmOpen = false">
+                {{ t('study.product.lessonActionCancel') }}
+              </Button>
+              <Button variant="secondary" size="sm" :disabled="busy" @click="regenerateLesson">
+                {{ t('study.product.lessonRegenerateConfirmAction') }}
+              </Button>
+            </div>
+          </div>
+
+          <p
+            v-if="currentLessonOperation?.status === 'submitting' || currentLessonOperation?.status === 'waiting'"
+            class="study-lesson-operation is-working"
+            aria-live="polite"
+          >
+            {{ currentLessonOperation.kind === 'revise'
+              ? t('study.product.lessonReviseWaiting')
+              : t('study.product.lessonRegenerateWaiting') }}
+          </p>
+          <p
+            v-else-if="currentLessonOperation?.status === 'succeeded'"
+            class="study-lesson-operation is-success"
+            aria-live="polite"
+          >
+            {{ t('study.product.lessonChangeSuccess') }}
+          </p>
+          <p
+            v-else-if="currentLessonOperation?.status === 'failed'"
+            class="study-lesson-operation is-error"
+            role="alert"
+          >
+            {{ t('study.product.lessonChangeError') }}
+          </p>
+        </div>
+
+        <div class="study-learn-reader-content">
+          <StudyLessonReader
+            v-if="currentLesson"
+            :source="currentLesson"
+            :show-practice-action="false"
+          />
+          <div v-else class="study-learn-reader-empty">
+            <Spinner size="lg" />
+          </div>
         </div>
       </section>
 
@@ -522,6 +680,14 @@ watch(() => props.snapshot.generation.publishedLessons, () => { void loadTree();
 .study-learn-reader {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.study-learn-reader-content {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -530,6 +696,78 @@ watch(() => props.snapshot.generation.publishedLessons, () => { void loadTree();
   align-items: center;
   justify-content: center;
   height: 100%;
+}
+
+.study-lesson-tools {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.study-lesson-tools-actions,
+.study-lesson-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.study-lesson-edit,
+.study-lesson-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.study-lesson-edit-label,
+.study-lesson-confirm-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text);
+}
+
+.study-lesson-edit-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.study-lesson-edit-input:focus {
+  outline: none;
+  border-color: var(--color-accent-bd);
+}
+
+.study-lesson-edit-example,
+.study-lesson-confirm-copy,
+.study-lesson-operation {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+.study-lesson-operation.is-success {
+  color: var(--color-success);
+}
+
+.study-lesson-operation.is-error {
+  color: var(--color-danger);
 }
 
 .study-tutor {

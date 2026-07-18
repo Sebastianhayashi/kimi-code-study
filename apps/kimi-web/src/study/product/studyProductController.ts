@@ -11,6 +11,7 @@ import {
   createUploadCourse,
 } from '../domain/courseState';
 import { buildTutorThread, type TutorExchange } from '../domain/tutorThread';
+import { isLessonArtifactPath, lessonArtifactRevision } from '../domain/lessonRevision';
 import type { StudyCourseBinding } from '../runtime/courseRegistry';
 import type {
   StudyQuestion,
@@ -45,6 +46,23 @@ export interface StudyPlanChangeState {
   readonly resultRevision?: string;
 }
 
+export type StudyLessonOperationStatus =
+  | 'idle'
+  | 'submitting'
+  | 'waiting'
+  | 'succeeded'
+  | 'failed';
+
+export type StudyLessonOperationKind = 'revise' | 'regenerate';
+
+export interface StudyLessonOperationState {
+  readonly status: StudyLessonOperationStatus;
+  readonly kind?: StudyLessonOperationKind;
+  readonly path?: string;
+  readonly baseRevision?: string;
+  readonly resultRevision?: string;
+}
+
 export interface StudyProductView {
   readonly stage: StudyProductStage;
   readonly snapshot: CourseSnapshot | null;
@@ -54,6 +72,7 @@ export interface StudyProductView {
   readonly connected: boolean;
   readonly issues: readonly ContractIssue[];
   readonly planChange: StudyPlanChangeState;
+  readonly lessonOperation: StudyLessonOperationState;
 }
 
 type Listener = (view: StudyProductView) => void;
@@ -61,6 +80,7 @@ type Listener = (view: StudyProductView) => void;
 export interface StudyProductControllerOptions {
   readonly createCourseId?: () => string;
   readonly now?: () => string;
+  readonly createOperationId?: () => string;
   /**
    * Backoff delays (ms) between snapshot reloads while a course artifact is
    * still pending. The number of entries bounds the retries; tests pass [].
@@ -70,6 +90,7 @@ export interface StudyProductControllerOptions {
 
 const DEFAULT_MISSING_RETRY_DELAYS: readonly number[] = [300, 700];
 const IDLE_PLAN_CHANGE: StudyPlanChangeState = { status: 'idle' };
+const IDLE_LESSON_OPERATION: StudyLessonOperationState = { status: 'idle' };
 
 interface PendingPlanChange {
   readonly courseId: string;
@@ -78,8 +99,22 @@ interface PendingPlanChange {
   submission: Promise<void>;
 }
 
+interface PendingLessonOperation {
+  readonly courseId: string;
+  readonly path: string;
+  readonly kind: StudyLessonOperationKind;
+  readonly instruction?: string;
+  readonly operationId: string;
+  baseRevision?: string;
+  submission: Promise<void>;
+}
+
 function isPlanChangeBusy(change: StudyPlanChangeState): boolean {
   return change.status === 'submitting' || change.status === 'waiting';
+}
+
+function isLessonOperationBusy(operation: StudyLessonOperationState): boolean {
+  return operation.status === 'submitting' || operation.status === 'waiting';
 }
 
 function delay(ms: number): Promise<void> {
@@ -90,6 +125,12 @@ function defaultCourseId(): string {
   const id = globalThis.crypto?.randomUUID?.()
     ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
   return `course-${id}`.toLowerCase();
+}
+
+function defaultOperationId(): string {
+  const id = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `lesson-op-${id}`.toLowerCase();
 }
 
 function toIssue(code: string, message: string): ContractIssue {
@@ -106,9 +147,11 @@ export class StudyProductController {
     connected: false,
     issues: [],
     planChange: IDLE_PLAN_CHANGE,
+    lessonOperation: IDLE_LESSON_OPERATION,
   };
   private readonly listeners = new Set<Listener>();
   private readonly createCourseId: () => string;
+  private readonly createOperationId: () => string;
   private readonly now: () => string;
   private readonly missingRetryDelays: readonly number[];
   private uploadedMaterial: UploadedMaterial | undefined;
@@ -121,6 +164,7 @@ export class StudyProductController {
   /** Latest snapshot read in the active course context wins. */
   private snapshotLoadEpoch = 0;
   private pendingPlanChange: PendingPlanChange | undefined;
+  private pendingLessonOperation: PendingLessonOperation | undefined;
   /** Set only by a real session-idle event while a plan change is pending. */
   private planChangeIdle:
     | { readonly courseId: string; readonly baseRevision: string }
@@ -131,6 +175,7 @@ export class StudyProductController {
     options: StudyProductControllerOptions = {},
   ) {
     this.createCourseId = options.createCourseId ?? defaultCourseId;
+    this.createOperationId = options.createOperationId ?? defaultOperationId;
     this.now = options.now ?? (() => new Date().toISOString());
     this.missingRetryDelays = options.missingRetryDelays ?? DEFAULT_MISSING_RETRY_DELAYS;
   }
@@ -174,12 +219,18 @@ export class StudyProductController {
       question: null,
       issues: [],
       planChange: IDLE_PLAN_CHANGE,
+      lessonOperation: IDLE_LESSON_OPERATION,
     });
   }
 
   async upload(file: File): Promise<CourseSnapshot> {
     const epoch = this.nextContext();
-    this.update({ stage: 'uploading', issues: [], planChange: IDLE_PLAN_CHANGE });
+    this.update({
+      stage: 'uploading',
+      issues: [],
+      planChange: IDLE_PLAN_CHANGE,
+      lessonOperation: IDLE_LESSON_OPERATION,
+    });
     try {
       const material = await this.runtime.uploadMaterial(file);
       if (!this.isCurrent(epoch)) throw new Error('Study upload was superseded.');
@@ -229,6 +280,7 @@ export class StudyProductController {
       question: null,
       issues: [],
       planChange: IDLE_PLAN_CHANGE,
+      lessonOperation: IDLE_LESSON_OPERATION,
     });
     try {
       const binding = await this.runtime.startCourse({ snapshot, catalogMaterial: material });
@@ -248,7 +300,13 @@ export class StudyProductController {
     if (binding === undefined) return false;
     if (!this.isCurrent(epoch)) return false;
     this.uploadedMaterial = binding.uploadedMaterial;
-    this.update({ binding, stage: 'working', issues: [], planChange: IDLE_PLAN_CHANGE });
+    this.update({
+      binding,
+      stage: 'working',
+      issues: [],
+      planChange: IDLE_PLAN_CHANGE,
+      lessonOperation: IDLE_LESSON_OPERATION,
+    });
     await this.attachWatcher(courseId, epoch);
     await this.refreshUntilSettled(courseId, epoch);
     return true;
@@ -286,8 +344,8 @@ export class StudyProductController {
           this.pendingPlanChange = undefined;
           this.planChangeIdle = undefined;
         } else if (this.failPlanChangeAtIdle(courseId, currentChange)) {
-          // Runtime only raises onArtifactChanged when the session becomes
-          // idle. Reaching idle without a new ready revision is a recoverable
+          // A real session-idle event was recorded for this request. Reaching
+          // idle without a new ready revision is a recoverable
           // plan-edit failure; the previous authoritative snapshot stays put.
           planChange = this.viewState.planChange;
         }
@@ -384,7 +442,9 @@ export class StudyProductController {
       // A double-click or replayed event confirms the same revision only once.
       return;
     }
-    if (!snapshot.canGenerate || isPlanChangeBusy(this.viewState.planChange)) {
+    if (!snapshot.canGenerate
+      || isPlanChangeBusy(this.viewState.planChange)
+      || isLessonOperationBusy(this.viewState.lessonOperation)) {
       throw new Error('The current evidence and plan revisions are not ready for generation.');
     }
     const epoch = this.contextEpoch;
@@ -417,13 +477,27 @@ export class StudyProductController {
   }
 
   async upgradeToDeep(): Promise<void> {
-    if (isPlanChangeBusy(this.viewState.planChange)) {
-      throw new Error('Wait for the current outline change before deepening the course.');
-    }
+    if (this.viewState.stage === 'starting') return;
     const current = this.requireSnapshot();
-    const epoch = this.nextContext();
+    if (current.profile?.mode !== 'quick') {
+      // Replayed clicks after the authoritative profile changes are harmless.
+      if (current.profile?.mode === 'deep' || current.profile?.mode === 'deep_preprocessed') return;
+      throw new Error('Only a ready quick course can be deepened.');
+    }
+    if (isPlanChangeBusy(this.viewState.planChange)
+      || isLessonOperationBusy(this.viewState.lessonOperation)) {
+      throw new Error('Wait for the current course change before deepening the course.');
+    }
     const snapshot = applyCourseEvent(current, { type: 'upgrade_requested' }, this.now());
-    this.update({ snapshot, stage: 'starting', issues: [], planChange: IDLE_PLAN_CHANGE });
+    const epoch = this.nextContext();
+    // Keep the last valid Quick snapshot and its published lessons visible
+    // until the Deep Skill publishes an authoritative replacement snapshot.
+    this.update({
+      stage: 'starting',
+      issues: [],
+      planChange: IDLE_PLAN_CHANGE,
+      lessonOperation: IDLE_LESSON_OPERATION,
+    });
     try {
       const binding = await this.runtime.startCourse({
         snapshot,
@@ -449,6 +523,18 @@ export class StudyProductController {
   async listCourseFiles(path: string): Promise<readonly FsEntry[] | undefined> {
     const snapshot = this.requireSnapshot();
     return this.runtime.listCourseFiles(snapshot.courseId, path);
+  }
+
+  /** Revise the visible lesson while its last valid artifact stays readable. */
+  async requestLessonChange(path: string, instruction: string): Promise<void> {
+    const text = instruction.trim();
+    if (text.length === 0) throw new Error('Lesson change request is empty.');
+    await this.beginLessonOperation('revise', path, text);
+  }
+
+  /** Regenerate the visible lesson behind the same identity and source anchors. */
+  async requestLessonRegeneration(path: string): Promise<void> {
+    await this.beginLessonOperation('regenerate', path);
   }
 
   /** Ask the course tutor; the current page context anchors the answer. */
@@ -478,6 +564,9 @@ export class StudyProductController {
       throw new Error('Only the current ready outline revision can be revised.');
     }
     if (text.length === 0) throw new Error('Outline change request is empty.');
+    if (isLessonOperationBusy(this.viewState.lessonOperation)) {
+      throw new Error('Wait for the current lesson change before revising the outline.');
+    }
 
     const baseRevision = snapshot.plan.revision;
     const active = this.pendingPlanChange;
@@ -523,6 +612,102 @@ export class StudyProductController {
     }
   }
 
+  private async beginLessonOperation(
+    kind: StudyLessonOperationKind,
+    path: string,
+    instruction?: string,
+  ): Promise<void> {
+    const snapshot = this.requireSnapshot();
+    if (!isLessonArtifactPath(path)) throw new Error('Only a published lesson can be changed.');
+    if (isPlanChangeBusy(this.viewState.planChange)) {
+      throw new Error('Wait for the current outline change before changing a lesson.');
+    }
+
+    const active = this.pendingLessonOperation;
+    if (isLessonOperationBusy(this.viewState.lessonOperation)) {
+      if (active?.courseId === snapshot.courseId
+        && active.path === path
+        && active.kind === kind
+        && active.instruction === instruction) {
+        await active.submission;
+        return;
+      }
+      throw new Error('Another lesson change is still in progress.');
+    }
+
+    const epoch = this.contextEpoch;
+    const request: PendingLessonOperation = {
+      courseId: snapshot.courseId,
+      path,
+      kind,
+      operationId: this.createOperationId(),
+      submission: Promise.resolve(),
+      ...(instruction === undefined ? {} : { instruction }),
+    };
+    this.pendingLessonOperation = request;
+    this.update({ lessonOperation: { status: 'submitting', kind, path } });
+    request.submission = (async () => {
+      const loaded = await this.runtime.readCourseText(snapshot.courseId, path);
+      if (loaded.status !== 'ready' || loaded.truncated) {
+        throw new Error('The current lesson is unavailable or incomplete.');
+      }
+      if (!this.isCurrent(epoch, snapshot.courseId) || this.pendingLessonOperation !== request) return;
+      const baseRevision = lessonArtifactRevision(loaded.content);
+      request.baseRevision = baseRevision;
+      this.update({
+        lessonOperation: {
+          status: 'submitting',
+          kind,
+          path,
+          baseRevision,
+        },
+      });
+      if (kind === 'revise') {
+        await this.runtime.requestLessonChange(
+          snapshot.courseId,
+          path,
+          request.baseRevision,
+          instruction ?? '',
+          request.operationId,
+        );
+      } else {
+        await this.runtime.requestLessonRegeneration(
+          snapshot.courseId,
+          path,
+          request.baseRevision,
+          request.operationId,
+        );
+      }
+    })();
+
+    try {
+      await request.submission;
+      if (this.pendingLessonOperation === request && this.isCurrent(epoch, snapshot.courseId)) {
+        this.update({
+          lessonOperation: {
+            status: 'waiting',
+            kind,
+            path,
+            ...(request.baseRevision === undefined ? {} : { baseRevision: request.baseRevision }),
+          },
+        });
+      }
+    } catch (error) {
+      if (this.pendingLessonOperation === request && this.isCurrent(epoch, snapshot.courseId)) {
+        this.pendingLessonOperation = undefined;
+        this.update({
+          lessonOperation: {
+            status: 'failed',
+            kind,
+            path,
+            ...(request.baseRevision === undefined ? {} : { baseRevision: request.baseRevision }),
+          },
+        });
+      }
+      throw error;
+    }
+  }
+
   dispose(): void {
     this.nextContext();
     this.stopWatching?.();
@@ -544,13 +729,16 @@ export class StudyProductController {
           this.update({ question: null, stage: 'working' });
         }
       },
-      onArtifactChanged: () => {
+      onArtifactChanged: (reason) => {
         if (!this.isCurrent(epoch, courseId)) return;
         const change = this.viewState.planChange;
-        if (isPlanChangeBusy(change) && change.baseRevision !== undefined) {
+        if (reason === 'session_idle'
+          && isPlanChangeBusy(change)
+          && change.baseRevision !== undefined) {
           this.planChangeIdle = { courseId, baseRevision: change.baseRevision };
         }
         void this.refreshSnapshot(courseId, epoch);
+        if (reason === 'session_idle') void this.settleLessonOperation(courseId, epoch);
       },
       onConnectionChange: (connected) => {
         if (!this.isCurrent(epoch, courseId)) return;
@@ -577,8 +765,41 @@ export class StudyProductController {
     this.contextEpoch += 1;
     this.snapshotLoadEpoch += 1;
     this.pendingPlanChange = undefined;
+    this.pendingLessonOperation = undefined;
     this.planChangeIdle = undefined;
     return this.contextEpoch;
+  }
+
+  private async settleLessonOperation(courseId: string, epoch: number): Promise<void> {
+    const request = this.pendingLessonOperation;
+    if (request?.courseId !== courseId || request.baseRevision === undefined) return;
+    const loaded = await this.runtime.readCourseText(courseId, request.path);
+    if (!this.isCurrent(epoch, courseId) || this.pendingLessonOperation !== request) return;
+    if (loaded.status === 'ready' && !loaded.truncated) {
+      const resultRevision = lessonArtifactRevision(loaded.content);
+      if (resultRevision !== request.baseRevision) {
+        this.pendingLessonOperation = undefined;
+        this.update({
+          lessonOperation: {
+            status: 'succeeded',
+            kind: request.kind,
+            path: request.path,
+            baseRevision: request.baseRevision,
+            resultRevision,
+          },
+        });
+        return;
+      }
+    }
+    this.pendingLessonOperation = undefined;
+    this.update({
+      lessonOperation: {
+        status: 'failed',
+        kind: request.kind,
+        path: request.path,
+        baseRevision: request.baseRevision,
+      },
+    });
   }
 
   private failPlanChangeAtIdle(

@@ -85,6 +85,28 @@ class FakeRuntime implements StudyRuntimePort {
     readonly planRevision: string;
     readonly instruction: string;
   }> = [];
+  readCourseTextImpl:
+    | ((courseId: string, path: string) => Promise<StudyTextLoad>)
+    | undefined;
+  lessonChangeImpl:
+    | ((courseId: string, path: string, baseRevision: string, instruction: string, operationId: string) => Promise<void>)
+    | undefined;
+  lessonRegenerationImpl:
+    | ((courseId: string, path: string, baseRevision: string, operationId: string) => Promise<void>)
+    | undefined;
+  readonly lessonChangeCalls: Array<{
+    readonly courseId: string;
+    readonly path: string;
+    readonly baseRevision: string;
+    readonly instruction: string;
+    readonly operationId: string;
+  }> = [];
+  readonly lessonRegenerationCalls: Array<{
+    readonly courseId: string;
+    readonly path: string;
+    readonly baseRevision: string;
+    readonly operationId: string;
+  }> = [];
   loadSnapshotImpl:
     | ((courseId: string) => Promise<StudyRuntimeSnapshotLoad>)
     | undefined;
@@ -106,8 +128,8 @@ class FakeRuntime implements StudyRuntimePort {
   }
   async uploadMaterial(): Promise<typeof this.uploaded> { if (this.uploadImpl !== undefined) return this.uploadImpl(); return this.uploaded; }
   async startCourse(input: StartCourseInput): Promise<StudyCourseBinding> {
-    if (this.startImpl !== undefined) { const result = await this.startImpl(input); this.startCalls.push(input); this.currentBinding = result; this.snapshots.set(input.snapshot.courseId, input.snapshot); return result; }
     this.startCalls.push(input);
+    if (this.startImpl !== undefined) { const result = await this.startImpl(input); this.currentBinding = result; this.snapshots.set(input.snapshot.courseId, input.snapshot); return result; }
     this.currentBinding = binding(input.snapshot.courseId);
     // The teaching engine writes its first artifacts asynchronously; by the
     // time the controller refreshes, the authoritative snapshot is readable.
@@ -142,7 +164,10 @@ class FakeRuntime implements StudyRuntimePort {
     if (this.generateDelay !== undefined) await this.generateDelay;
     if (this.generateError !== undefined) throw this.generateError;
   }
-  async readCourseText(): Promise<StudyTextLoad> { return { status: 'missing' }; }
+  async readCourseText(courseId: string, path: string): Promise<StudyTextLoad> {
+    if (this.readCourseTextImpl !== undefined) return this.readCourseTextImpl(courseId, path);
+    return { status: 'missing' };
+  }
   async listCourseFiles(): Promise<readonly FsEntry[] | undefined> { return undefined; }
   async listCatalog(): Promise<readonly CertifiedCatalogMaterial[]> { return []; }
   async sendTutorMessage(): Promise<void> {}
@@ -155,6 +180,29 @@ class FakeRuntime implements StudyRuntimePort {
     this.planChangeCalls.push({ courseId, planRevision, instruction });
     if (this.planChangeImpl !== undefined) {
       await this.planChangeImpl(courseId, planRevision, instruction);
+    }
+  }
+  async requestLessonChange(
+    courseId: string,
+    path: string,
+    baseRevision: string,
+    instruction: string,
+    operationId: string,
+  ): Promise<void> {
+    this.lessonChangeCalls.push({ courseId, path, baseRevision, instruction, operationId });
+    if (this.lessonChangeImpl !== undefined) {
+      await this.lessonChangeImpl(courseId, path, baseRevision, instruction, operationId);
+    }
+  }
+  async requestLessonRegeneration(
+    courseId: string,
+    path: string,
+    baseRevision: string,
+    operationId: string,
+  ): Promise<void> {
+    this.lessonRegenerationCalls.push({ courseId, path, baseRevision, operationId });
+    if (this.lessonRegenerationImpl !== undefined) {
+      await this.lessonRegenerationImpl(courseId, path, baseRevision, operationId);
     }
   }
 }
@@ -242,19 +290,27 @@ describe('Study workflow pin', () => {
     )).toBe(false);
     expect(installedSkillMatches(
       { name: 'teach-quick', description: '[contract:teach-quick-v2] Quick', source: 'user' },
-      { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v4' },
     )).toBe(false);
     expect(installedSkillMatches(
       { name: 'teach-quick', description: '[contract:teach-quick-v1] Quick', source: 'user' },
-      { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v4' },
     )).toBe(false);
     expect(installedSkillMatches(
       { name: 'teach-quick', description: '[contract:teach-quick-v3] Quick', source: 'user' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v4' },
+    )).toBe(false);
+    expect(installedSkillMatches(
+      { name: 'teach-quick', description: '[contract:teach-quick-v4] Quick', source: 'user' },
       { name: 'teach-quick', contractRevision: 'teach-quick-v2' },
     )).toBe(true);
     expect(installedSkillMatches(
-      { name: 'teach-ria', description: '[contract:teach-ria-v3] Deep', source: 'user' },
+      { name: 'teach-quick', description: '[contract:teach-quick-v4] Quick', source: 'user' },
       { name: 'teach-quick', contractRevision: 'teach-quick-v3' },
+    )).toBe(true);
+    expect(installedSkillMatches(
+      { name: 'teach-ria', description: '[contract:teach-ria-v4] Deep', source: 'user' },
+      { name: 'teach-quick', contractRevision: 'teach-quick-v4' },
     )).toBe(false);
   });
 });
@@ -405,6 +461,63 @@ describe('KimiStudyRuntime pagination', () => {
       }),
     }));
   });
+
+  it('coalesces one lesson revision operation and carries its stale-write guard', async () => {
+    const gate = deferred<{ promptId: string; userMessageId: string }>();
+    const listMessages: KimiWebApi['listMessages'] = vi.fn(async () => ({
+      items: [],
+      hasMore: false,
+    }));
+    const submitPrompt: KimiWebApi['submitPrompt'] = vi.fn(() => gate.promise);
+    const runtime = runtimeWith({ listMessages, submitPrompt }, true);
+
+    const first = runtime.requestLessonChange(
+      'course-12345678',
+      'lessons/0001-feedback.html',
+      'fnv1a32:1234abcd',
+      '增加一个面向初学者的解释',
+      'lesson-op-12345678',
+    );
+    const duplicate = runtime.requestLessonChange(
+      'course-12345678',
+      'lessons/0001-feedback.html',
+      'fnv1a32:1234abcd',
+      '增加一个面向初学者的解释',
+      'lesson-op-12345678',
+    );
+    await vi.waitFor(() => { expect(submitPrompt).toHaveBeenCalledTimes(1); });
+    gate.resolve({ promptId: 'prompt-lesson-1', userMessageId: 'message-lesson-1' });
+    await Promise.all([first, duplicate]);
+
+    await runtime.requestLessonChange(
+      'course-12345678',
+      'lessons/0001-feedback.html',
+      'fnv1a32:1234abcd',
+      '增加一个面向初学者的解释',
+      'lesson-op-12345678',
+    );
+    expect(submitPrompt).toHaveBeenCalledTimes(1);
+    expect(submitPrompt).toHaveBeenCalledWith('session-1', expect.objectContaining({
+      metadata: expect.objectContaining({
+        kimiStudyLessonOperation: 'revise',
+        kimiStudyLessonPath: 'lessons/0001-feedback.html',
+        kimiStudyLessonBaseRevision: 'fnv1a32:1234abcd',
+      }),
+    }));
+  });
+
+  it('rejects an unsafe lesson target before submitting regeneration', async () => {
+    const submitPrompt: KimiWebApi['submitPrompt'] = vi.fn();
+    const runtime = runtimeWith({ submitPrompt }, true);
+
+    await expect(runtime.requestLessonRegeneration(
+      'course-12345678',
+      '../source/private.html',
+      'fnv1a32:1234abcd',
+      'lesson-op-12345678',
+    )).rejects.toThrow('lesson path');
+    expect(submitPrompt).not.toHaveBeenCalled();
+  });
 });
 
 describe('StudyProductController', () => {
@@ -541,8 +654,10 @@ describe('StudyProductController concurrency guards', () => {
   }
 
   function makeController(runtime: FakeRuntime): StudyProductController {
+    let operation = 0;
     return new StudyProductController(runtime, {
       createCourseId: () => 'course-12345678',
+      createOperationId: () => `lesson-op-test-${++operation}`,
       now: () => NOW,
       missingRetryDelays: [],
     });
@@ -604,11 +719,11 @@ describe('StudyProductController concurrency guards', () => {
     await controller.open('course-b');
     const loadsAfterOpen = runtime.loadCalls.length;
 
-    runtime.handlersByCourse.get('course-a')?.onArtifactChanged();
+    runtime.handlersByCourse.get('course-a')?.onArtifactChanged('resync');
     await Promise.resolve();
     expect(runtime.loadCalls).toHaveLength(loadsAfterOpen);
 
-    runtime.handlersByCourse.get('course-b')?.onArtifactChanged();
+    runtime.handlersByCourse.get('course-b')?.onArtifactChanged('resync');
     await vi.waitFor(() => { expect(runtime.loadCalls).toHaveLength(loadsAfterOpen + 1); });
     expect(runtime.loadCalls.at(-1)).toBe('course-b');
   });
@@ -681,7 +796,7 @@ describe('StudyProductController concurrency guards', () => {
       },
     }, NOW);
     runtime.snapshots.set('course-12345678', revised);
-    runtime.handlers?.onArtifactChanged();
+    runtime.handlers?.onArtifactChanged('session_idle');
     await vi.waitFor(() => { expect(controller.view.planChange.status).toBe('succeeded'); });
 
     expect(controller.view.planChange).toEqual({
@@ -715,7 +830,7 @@ describe('StudyProductController concurrency guards', () => {
 
     // A real session-idle event without a new ready revision is a recoverable
     // failure, not permission to discard the previous outline.
-    runtime.handlers?.onArtifactChanged();
+    runtime.handlers?.onArtifactChanged('session_idle');
     await vi.waitFor(() => { expect(controller.view.planChange.status).toBe('failed'); });
     expect(controller.view.snapshot?.plan.revision).toBe('plan-v1');
     expect(controller.view.stage).toBe('working');
@@ -732,7 +847,7 @@ describe('StudyProductController concurrency guards', () => {
     runtime.planChangeImpl = async () => {};
     await controller.requestPlanChange('把风险分析移到最前面');
     runtime.loadSnapshotImpl = async () => ({ status: 'missing' });
-    runtime.handlers?.onArtifactChanged();
+    runtime.handlers?.onArtifactChanged('session_idle');
     await vi.waitFor(() => { expect(controller.view.planChange.status).toBe('failed'); });
 
     expect(controller.view.snapshot).toBe(original);
@@ -749,6 +864,109 @@ describe('StudyProductController concurrency guards', () => {
 
     await expect(controller.requestPlanChange('   ')).rejects.toThrow('empty');
     expect(runtime.planChangeCalls).toHaveLength(0);
+  });
+
+  it('coalesces one current-lesson revision and waits for a changed artifact', async () => {
+    const runtime = new FakeRuntime();
+    runtime.snapshots.set('course-12345678', readySnapshot('course-12345678'));
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    let lesson = '<html><title>第一课</title><body>旧版本</body></html>';
+    runtime.readCourseTextImpl = async () => ({
+      status: 'ready',
+      content: lesson,
+      truncated: false,
+    });
+    const gate = deferred<void>();
+    runtime.lessonChangeImpl = async () => gate.promise;
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    const first = controller.requestLessonChange(
+      'lessons/0001-first.html',
+      '增加一个初学者能理解的例子',
+    );
+    const duplicate = controller.requestLessonChange(
+      'lessons/0001-first.html',
+      '  增加一个初学者能理解的例子  ',
+    );
+    await vi.waitFor(() => {
+      expect(runtime.lessonChangeCalls).toHaveLength(1);
+      expect(controller.view.lessonOperation.status).toBe('submitting');
+    });
+    await expect(controller.requestLessonChange(
+      'lessons/0001-first.html',
+      '改写为专家版本',
+    )).rejects.toThrow('still in progress');
+    gate.resolve();
+    await Promise.all([first, duplicate]);
+    expect(controller.view.lessonOperation.status).toBe('waiting');
+
+    runtime.handlers?.onArtifactChanged('resync');
+    await Promise.resolve();
+    expect(controller.view.lessonOperation.status).toBe('waiting');
+
+    lesson = '<html><title>第一课</title><body>加入解释后的新版本</body></html>';
+    runtime.handlers?.onArtifactChanged('session_idle');
+    await vi.waitFor(() => { expect(controller.view.lessonOperation.status).toBe('succeeded'); });
+    expect(controller.view.lessonOperation).toMatchObject({
+      kind: 'revise',
+      path: 'lessons/0001-first.html',
+      baseRevision: runtime.lessonChangeCalls[0]?.baseRevision,
+    });
+    expect(controller.view.lessonOperation.resultRevision).not.toBe(
+      controller.view.lessonOperation.baseRevision,
+    );
+  });
+
+  it('keeps the previous lesson on failure and gives an explicit retry a new operation id', async () => {
+    const runtime = new FakeRuntime();
+    runtime.snapshots.set('course-12345678', readySnapshot('course-12345678'));
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    let lesson = '<html><title>第一课</title><body>最后有效版本</body></html>';
+    runtime.readCourseTextImpl = async () => ({
+      status: 'ready',
+      content: lesson,
+      truncated: false,
+    });
+    const controller = makeController(runtime);
+    await controller.open('course-12345678');
+
+    await controller.requestLessonRegeneration('lessons/0001-first.html');
+    runtime.handlers?.onArtifactChanged('session_idle');
+    await vi.waitFor(() => { expect(controller.view.lessonOperation.status).toBe('failed'); });
+
+    await controller.requestLessonRegeneration('lessons/0001-first.html');
+    expect(runtime.lessonRegenerationCalls).toHaveLength(2);
+    expect(runtime.lessonRegenerationCalls[1]?.operationId).not.toBe(
+      runtime.lessonRegenerationCalls[0]?.operationId,
+    );
+    lesson = '<html><title>第一课</title><body>重生成后的有效版本</body></html>';
+    runtime.handlers?.onArtifactChanged('session_idle');
+    await vi.waitFor(() => { expect(controller.view.lessonOperation.status).toBe('succeeded'); });
+  });
+
+  it('drops a lesson request whose base read finishes after switching courses', async () => {
+    const runtime = new FakeRuntime();
+    runtime.snapshots.set('course-a', readySnapshot('course-a'));
+    runtime.snapshots.set('course-b', readySnapshot('course-b'));
+    runtime.resumeImpl = async (courseId) => binding(courseId);
+    const read = deferred<StudyTextLoad>();
+    runtime.readCourseTextImpl = async () => read.promise;
+    const controller = makeController(runtime);
+    await controller.open('course-a');
+
+    const stale = controller.requestLessonChange('lessons/0001-first.html', '补充例子');
+    await controller.open('course-b');
+    read.resolve({
+      status: 'ready',
+      content: '<html><title>第一课</title><body>旧课程</body></html>',
+      truncated: false,
+    });
+    await stale;
+
+    expect(runtime.lessonChangeCalls).toHaveLength(0);
+    expect(controller.view.snapshot?.courseId).toBe('course-b');
+    expect(controller.view.lessonOperation.status).toBe('idle');
   });
 
   it('keeps a newer question that arrived while an answer was in flight', async () => {
@@ -868,6 +1086,30 @@ describe('StudyProductController concurrency guards', () => {
     expect(runtime.loadCalls.length).toBeGreaterThan(loadsBefore);
     expect(controller.view.snapshot?.mission.summary).toBe('Go deep.');
     expect(controller.view.stage).toBe('working');
+  });
+
+  it('coalesces a double-clicked deepen request and keeps Quick artifacts on failure', async () => {
+    const runtime = new FakeRuntime();
+    const controller = makeController(runtime);
+    await controller.upload(new File(['book'], 'Book.pdf'));
+    await controller.selectMode('quick');
+    const quick = controller.view.snapshot;
+    const startsBeforeDeepen = runtime.startCalls.length;
+    const gate = deferred<StudyCourseBinding>();
+    runtime.startImpl = async () => gate.promise;
+
+    const first = controller.upgradeToDeep();
+    const duplicate = controller.upgradeToDeep();
+    await duplicate;
+    expect(runtime.startCalls).toHaveLength(startsBeforeDeepen + 1);
+    expect(controller.view.snapshot).toBe(quick);
+    expect(controller.view.snapshot?.profile?.mode).toBe('quick');
+
+    gate.reject(new Error('deepening unavailable'));
+    await expect(first).rejects.toThrow('deepening unavailable');
+    expect(controller.view.snapshot).toBe(quick);
+    expect(controller.view.stage).toBe('error');
+    expect(controller.view.issues[0]?.code).toBe('upgrade_failed');
   });
 
   it('shows a recoverable error when the snapshot stays missing after start', async () => {
