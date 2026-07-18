@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "title": "从增长数字读到因果边界",
+  "lessons": [
+    {
+      "order": 1,
+      "title": "区分观察到的变化与因果结论",
+      "objective": "从同一组数字中分别写出观察事实和仍待验证的因果解释",
+      "sourceAnchors": ["A-1 到馆记录", "A-2 同期变化"]
+    },
+    {
+      "order": 2,
+      "title": "判断访谈能支持到哪一步",
+      "objective": "根据抽样时间与人数说明访谈线索可以提示什么、不能代表什么",
+      "sourceAnchors": ["A-3 访谈线索"]
+    }
+  ],
+  "visibleDeferrals": []
+}

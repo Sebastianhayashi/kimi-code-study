@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "title": "按条件和时间完成补贴申请",
+  "lessons": [
+    {
+      "order": 1,
+      "title": "同时核对两项申请资格",
+      "objective": "根据社保期限和入托时间判断家庭是否满足申请资格",
+      "sourceAnchors": ["POL-1 申请资格"]
+    },
+    {
+      "order": 2,
+      "title": "区分申请窗口与补正期限",
+      "objective": "为首次申请和收到补正通知两种情况分别计算截止时间",
+      "sourceAnchors": ["POL-2 申请期限"]
+    },
+    {
+      "order": 3,
+      "title": "理解审核结果对应的保存期限",
+      "objective": "说明通过与未通过材料的不同保存和删除规则",
+      "sourceAnchors": ["POL-3 材料保存"]
+    }
+  ],
+  "visibleDeferrals": []
+}

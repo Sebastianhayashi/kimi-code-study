@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "title": "从状态判断到安全复位",
+  "lessons": [
+    {
+      "order": 1,
+      "title": "用指示灯判断设备状态",
+      "objective": "根据三种灯光信号判断设备当前状态并选择下一步动作",
+      "sourceAnchors": ["P-2 指示灯状态"]
+    },
+    {
+      "order": 2,
+      "title": "在合适环境中安装设备",
+      "objective": "检查距离、蓝牙和安装环境是否满足首次安装条件",
+      "sourceAnchors": ["P-1 安装条件"]
+    },
+    {
+      "order": 3,
+      "title": "区分复位会清除和保留的内容",
+      "objective": "执行复位前说明配对记录与本地测量记录的不同结果",
+      "sourceAnchors": ["P-3 复位与记录"]
+    }
+  ],
+  "visibleDeferrals": []
+}

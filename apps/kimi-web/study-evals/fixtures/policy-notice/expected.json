@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "policy-notice",
+  "category": "政策说明",
+  "lessonPath": "lesson.html",
+  "coverageAnchors": ["POL-1 申请资格", "POL-2 申请期限", "POL-3 材料保存"],
+  "allowedLessonAnchors": ["POL-1 申请资格", "POL-2 申请期限"],
+  "requiredSourcePhrases": [
+    "连续缴纳社会保险满 12 个月",
+    "申请窗口为 2026 年 6 月 1 日至 6 月 30 日"
+  ],
+  "objectiveKeywords": ["资格", "期限"],
+  "forbiddenClaims": ["符合条件的家庭会自动获得补贴"]
+}
