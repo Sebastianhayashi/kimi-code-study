@@ -7,7 +7,7 @@
 import { computed, defineAsyncComponent, onMounted, provide, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppearance } from '../composables/client/useAppearance';
-import { initServerAuth } from '../api/daemon/serverAuth';
+import { initServerAuth, setCredential } from '../api/daemon/serverAuth';
 import Button from '../components/ui/Button.vue';
 import Icon from '../components/ui/Icon.vue';
 import Spinner from '../components/ui/Spinner.vue';
@@ -19,16 +19,16 @@ import {
   type QuestionResponse,
   type StudyCourseBinding,
 } from './foundation';
-
-// Hydrate the server-transport credential (#token fragment or localStorage)
-// before the facade's first REST/WS call, mirroring the chat client's boot.
-initServerAuth();
 import StudyProductHome from './components/product/StudyProductHome.vue';
 import StudyModeSelect from './components/product/StudyModeSelect.vue';
 import StudyPreparing from './components/product/StudyPreparing.vue';
 import StudyOutline from './components/product/StudyOutline.vue';
 import StudyLearning from './components/product/StudyLearning.vue';
 import StudyQuestionCard from './components/product/StudyQuestionCard.vue';
+
+// Hydrate the server-transport credential (#token fragment or localStorage)
+// before the facade's first REST/WS call, mirroring the chat client's boot.
+initServerAuth();
 
 // Dev-only demo fixture: never bundled into the product flow. Opt in with
 // ?study-demo=1 while running the dev server.
@@ -72,6 +72,22 @@ onMounted(async () => {
 const model = computed(() => deriveStudyScreen(product.view.value));
 const snapshot = computed(() => product.view.value.snapshot);
 const question = computed(() => product.view.value.question);
+
+// A 401 from the server means the transport credential is missing/expired —
+// offer a token entry instead of the generic "unreachable" screen.
+const needsServerCredential = computed(() =>
+  model.value.screen === 'unavailable'
+  && /401|unauthorized/i.test(model.value.readinessMessage ?? ''));
+
+const serverTokenInput = ref('');
+
+async function saveServerToken(): Promise<void> {
+  const token = serverTokenInput.value.trim();
+  if (token.length === 0) return;
+  setCredential(token);
+  serverTokenInput.value = '';
+  await onRecheck();
+}
 
 watch(
   () => model.value.screen,
@@ -171,12 +187,31 @@ function onRecheck(): Promise<void> {
       </div>
 
       <div v-else-if="model.screen === 'unavailable'" class="study-center">
-        <Icon name="alert-triangle" size="lg" />
-        <h2 class="study-center-title">{{ t('study.product.unavailableTitle') }}</h2>
-        <p class="study-center-text">{{ model.readinessMessage ?? t('study.product.unavailableBody') }}</p>
-        <Button variant="secondary" size="md" @click="onRecheck">
-          {{ t('study.product.retry') }}
-        </Button>
+        <template v-if="needsServerCredential">
+          <Icon name="log-in" size="lg" />
+          <h2 class="study-center-title">{{ t('study.product.serverTokenTitle') }}</h2>
+          <p class="study-center-text">{{ t('study.product.serverTokenHint') }}</p>
+          <form class="study-token-form" @submit.prevent="saveServerToken">
+            <input
+              v-model="serverTokenInput"
+              class="study-token-input"
+              type="password"
+              autocomplete="off"
+              :placeholder="t('study.product.serverTokenPlaceholder')"
+            />
+            <Button variant="primary" size="md" type="submit" :disabled="serverTokenInput.trim().length === 0">
+              {{ t('study.product.serverTokenSave') }}
+            </Button>
+          </form>
+        </template>
+        <template v-else>
+          <Icon name="alert-triangle" size="lg" />
+          <h2 class="study-center-title">{{ t('study.product.unavailableTitle') }}</h2>
+          <p class="study-center-text">{{ model.readinessMessage ?? t('study.product.unavailableBody') }}</p>
+          <Button variant="secondary" size="md" @click="onRecheck">
+            {{ t('study.product.retry') }}
+          </Button>
+        </template>
       </div>
 
       <StudyProductHome
@@ -330,5 +365,29 @@ function onRecheck(): Promise<void> {
   color: var(--color-text-muted);
   line-height: var(--leading-relaxed);
   max-width: 420px;
+}
+
+.study-token-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: min(420px, 100%);
+}
+
+.study-token-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.study-token-input:focus {
+  outline: none;
+  border-color: var(--color-accent-bd);
 }
 </style>
