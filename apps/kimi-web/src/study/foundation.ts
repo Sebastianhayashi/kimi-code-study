@@ -17,6 +17,7 @@ export {
   extractHtmlTitle,
   LESSON_INDEX_CONTRACT_REVISION,
   LESSON_INDEX_PATH,
+  authoritativePublishedLessons,
   parseLessonIndex,
   parseQuickPlanOutline,
   QUICK_PLAN_PATH,

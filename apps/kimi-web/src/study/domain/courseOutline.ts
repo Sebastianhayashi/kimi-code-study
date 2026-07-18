@@ -91,6 +91,25 @@ export function extractHtmlTitle(html: string): string | undefined {
  * Parse the generated lesson manifest without accepting partial or invented data.
  * Entries must be ordered, unique, workspace-relative HTML paths under lessons/.
  */
+
+/**
+ * Treat a lesson index as authoritative only when every published path exists
+ * on disk and the published count matches the product snapshot. Otherwise the
+ * UI must fall back to directory listing — a stale index is never the catalog.
+ */
+export function authoritativePublishedLessons(
+  manifest: LessonIndex | undefined,
+  publishedLessons: number,
+  existingLessonPaths: ReadonlySet<string>,
+): readonly LessonIndexEntry[] | undefined {
+  if (manifest === undefined) return undefined;
+  if (!Number.isInteger(publishedLessons) || publishedLessons < 0) return undefined;
+  const published = manifest.lessons.filter((entry) => entry.status === 'published');
+  if (published.length !== publishedLessons) return undefined;
+  if (!published.every((entry) => existingLessonPaths.has(entry.path))) return undefined;
+  return published;
+}
+
 export function parseLessonIndex(json: string): LessonIndex | undefined {
   let raw: unknown;
   try {

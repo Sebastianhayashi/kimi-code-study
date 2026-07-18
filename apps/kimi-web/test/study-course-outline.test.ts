@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractHtmlTitle,
   LESSON_INDEX_CONTRACT_REVISION,
+  authoritativePublishedLessons,
   parseLessonIndex,
   parseQuickPlanOutline,
 } from '../src/study/domain/courseOutline';
@@ -126,5 +127,66 @@ describe('parseLessonIndex', () => {
       ...valid,
       lessons: [{ ...valid.lessons[0], status: 'ready' }],
     }))).toBeUndefined();
+  });
+});
+
+
+describe('authoritativePublishedLessons', () => {
+  const valid = {
+    schemaVersion: 1 as const,
+    contractRevision: LESSON_INDEX_CONTRACT_REVISION,
+    lessons: [
+      {
+        order: 1,
+        path: 'lessons/0001-feedback-loops.html',
+        title: 'Feedback loops',
+        status: 'published' as const,
+      },
+      {
+        order: 2,
+        path: 'lessons/0002-boundaries.html',
+        title: 'Boundaries',
+        status: 'published' as const,
+      },
+      {
+        order: 3,
+        path: 'lessons/0003-planned.html',
+        title: 'Planned',
+        status: 'planned' as const,
+      },
+    ],
+  };
+  const existing = new Set([
+    'lessons/0001-feedback-loops.html',
+    'lessons/0002-boundaries.html',
+  ]);
+
+  it('accepts an index when count matches and every published path exists', () => {
+    const published = authoritativePublishedLessons(valid, 2, existing);
+    expect(published).toHaveLength(2);
+    expect(published?.map((entry) => entry.title)).toEqual([
+      'Feedback loops',
+      'Boundaries',
+    ]);
+  });
+
+  it('rejects when any published path is missing from the directory listing', () => {
+    const incomplete = new Set(['lessons/0001-feedback-loops.html']);
+    expect(authoritativePublishedLessons(valid, 2, incomplete)).toBeUndefined();
+  });
+
+  it('rejects when published count disagrees with the snapshot', () => {
+    expect(authoritativePublishedLessons(valid, 1, existing)).toBeUndefined();
+    expect(authoritativePublishedLessons(valid, 3, existing)).toBeUndefined();
+  });
+
+  it('rejects undefined / invalid manifests without inventing entries', () => {
+    expect(authoritativePublishedLessons(undefined, 2, existing)).toBeUndefined();
+    expect(authoritativePublishedLessons(valid, -1, existing)).toBeUndefined();
+  });
+
+  it('accepted list only contains paths that exist on disk', () => {
+    const published = authoritativePublishedLessons(valid, 2, existing);
+    expect(published?.every((entry) => existing.has(entry.path))).toBe(true);
   });
 });

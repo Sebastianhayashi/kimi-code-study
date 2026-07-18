@@ -13,6 +13,7 @@ import IconButton from '../../../components/ui/IconButton.vue';
 import Spinner from '../../../components/ui/Spinner.vue';
 import StudyLessonReader from '../StudyLessonReader.vue';
 import {
+  authoritativePublishedLessons,
   extractHtmlTitle,
   LESSON_INDEX_PATH,
   parseLessonIndex,
@@ -51,6 +52,8 @@ interface LessonEntry {
 
 const lessons = ref<readonly LessonEntry[]>([]);
 const treeUnavailable = ref(false);
+/** Mobile lesson nav collapses so the reader can use full viewport width. */
+const treeNavOpen = ref(false);
 const currentPath = ref<string | undefined>(undefined);
 const currentLesson = ref<LessonSource | undefined>(undefined);
 let treeLoadEpoch = 0;
@@ -70,25 +73,36 @@ async function publishTree(entries: readonly LessonEntry[], epoch: number): Prom
 
 async function loadTree(): Promise<void> {
   const epoch = ++treeLoadEpoch;
-  const indexed = await product.loadCourseText(LESSON_INDEX_PATH, 128 * 1024);
+  // Index + directory listing in parallel: a stale index that claims published
+  // lessons missing on disk must not become the catalog.
+  const [indexed, files] = await Promise.all([
+    product.loadCourseText(LESSON_INDEX_PATH, 128 * 1024),
+    product.listCourseFiles('lessons'),
+  ]);
   if (epoch !== treeLoadEpoch) return;
-  if (indexed.status === 'ready' && !indexed.truncated) {
-    const manifest = parseLessonIndex(indexed.content);
-    if (manifest !== undefined) {
-      const published = manifest.lessons.filter((entry) => entry.status === 'published');
-      if (published.length === props.snapshot.generation.publishedLessons) {
-        treeUnavailable.value = false;
-        await publishTree(
-          published.map((entry) => ({ path: entry.path, title: entry.title })),
-          epoch,
-        );
-        return;
-      }
-    }
+
+  const manifest = indexed.status === 'ready' && !indexed.truncated
+    ? parseLessonIndex(indexed.content)
+    : undefined;
+  const existingHtmlPaths = new Set(
+    (files ?? [])
+      .filter((file) => file.name.endsWith('.html'))
+      .map((file) => `lessons/${file.name}`),
+  );
+  const published = authoritativePublishedLessons(
+    manifest,
+    props.snapshot.generation.publishedLessons,
+    existingHtmlPaths,
+  );
+  if (published !== undefined) {
+    treeUnavailable.value = false;
+    await publishTree(
+      published.map((entry) => ({ path: entry.path, title: entry.title })),
+      epoch,
+    );
+    return;
   }
 
-  const files = await product.listCourseFiles('lessons');
-  if (epoch !== treeLoadEpoch) return;
   if (files === undefined) {
     treeUnavailable.value = true;
     return;
@@ -113,6 +127,9 @@ async function loadTree(): Promise<void> {
 
 async function selectLesson(path: string): Promise<void> {
   currentPath.value = path;
+  if (typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches) {
+    treeNavOpen.value = false;
+  }
   currentLesson.value = undefined;
   const loaded = await product.loadCourseText(path);
   // A slower load must not overwrite a newer selection.
@@ -247,8 +264,22 @@ watch(() => props.snapshot.generation.publishedLessons, () => { void loadTree();
     </header>
 
     <div class="study-learn-body">
-      <aside class="study-learn-tree">
-        <p class="study-learn-progress">{{ lessonsLabel }}</p>
+      <aside class="study-learn-tree" :class="{ 'is-nav-open': treeNavOpen }">
+        <div class="study-learn-tree-head">
+          <p class="study-learn-progress">{{ lessonsLabel }}</p>
+          <Button
+            class="study-learn-tree-toggle"
+            variant="ghost"
+            size="sm"
+            type="button"
+            :aria-expanded="treeNavOpen"
+            :aria-label="lessonsLabel"
+            @click="treeNavOpen = !treeNavOpen"
+          >
+            <Icon name="list" size="sm" />
+            <span>{{ lessonsLabel }}</span>
+          </Button>
+        </div>
         <div class="study-learn-bar" role="progressbar">
           <div
             class="study-learn-bar-fill"
@@ -634,9 +665,86 @@ watch(() => props.snapshot.generation.publishedLessons, () => { void loadTree();
   line-height: var(--leading-relaxed);
 }
 
+.study-learn-tree-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.study-learn-tree-toggle {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .study-learn-tree {
     width: 200px;
+  }
+
+  .study-tutor {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    z-index: var(--z-sticky);
+  }
+}
+
+/* ≤640px: single column — reader gets full width; lesson nav collapses. */
+@media (max-width: 640px) {
+  .study-learn-chrome {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .study-learn-title {
+    text-align: left;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .study-learn-chrome-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .study-learn-body {
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  .study-learn-tree {
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid var(--color-line);
+    padding: var(--space-3);
+  }
+
+  .study-learn-tree-toggle {
+    display: inline-flex;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .study-learn-tree:not(.is-nav-open) .study-learn-tree-list,
+  .study-learn-tree:not(.is-nav-open) .study-learn-bar,
+  .study-learn-tree:not(.is-nav-open) .study-upgrade,
+  .study-learn-tree:not(.is-nav-open) .study-learn-progress,
+  .study-learn-tree:not(.is-nav-open) .study-learn-tree-note {
+    display: none;
+  }
+
+  .study-learn-tree.is-nav-open {
+    max-height: min(45vh, 320px);
+    overflow-y: auto;
+  }
+
+  .study-learn-reader {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    min-height: 50vh;
   }
 
   .study-tutor {
