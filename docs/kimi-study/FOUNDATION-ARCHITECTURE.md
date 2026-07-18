@@ -325,7 +325,14 @@ Verification at this point: typecheck clean; 912 frontend tests pass (23 new: sc
 
 Still open (unchanged constraints):
 
-- Real authenticated journeys (Quick, Deep, catalog, upgrade, stale-plan rejection, reconnect, tutor) wait for provider login (`auth.ready=false` observed 2026-07-17).
-- Screenshot/animation parity passes happen only after those journeys run.
+- ~~Real authenticated journeys~~ **Quick journey PASSED 2026-07-18** (real server, real model): upload → survey evidence (`survey`, never certification) → Mission ready (0 questions, in-budget) → plan `qplan-1` pinned to source/Mission revisions → incremental publication 1/3 → 2/3 → ready 3/3, `auto_policy` approvals throughout. Deep, catalog, upgrade, stale-plan rejection, reconnect, and tutor journeys remain to be run.
+- Screenshot/animation parity passes happen only after the remaining journeys run.
 - Deep-mode outline items currently render as counts only (QUICK-PLAN parsing covers quick plans; blueprint parsing is a later increment).
 - Catalog has no publisher tooling beyond the existing `build-catalog-package.py` producer contract; `<workspace>/packages/` is populated manually or by future tooling.
+
+Environment notes for the next agent:
+
+- **Daemon empty-model quirk (root cause of earlier "auth blocked" misdiagnosis)**: sessions created without an explicit model keep `agent_config.model = ''`, and a prompt to such a session dies silently — no assistant reply, no error. `KimiStudyRuntime.ensureBinding` now pins the server's configured default model (from `GET /auth`) on every course session via `POST /sessions/{id}/profile`. Do not remove that call.
+- Provider login: the server config now carries a `managed:kimi-code` provider (type `kimi`, plan API key) with model aliases `kimi-code/kimi-for-coding` (default), `-highspeed`, and `k3`; `auth.ready=true`.
+- `kimi-study.service` ExecStart was moved from the nix-store 0.23.6 build to `~/.kimi-code/bin/kimi` (0.26.0, same as the interactive CLI); the previous unit is backed up at `~/.config/systemd/user/kimi-study.service.bak-0.23.6`.
+- Product UI dev server: `apps/kimi-web` with `VITE_KIMI_PRODUCT=study KIMI_SERVER_URL=http://100.70.160.30:58637 vite --host 100.70.160.30 --port 5177`; first visit needs `#token=<server token>` once (7-day browser persistence). Ports 5175/5176 belong to other worktrees — do not reuse.
