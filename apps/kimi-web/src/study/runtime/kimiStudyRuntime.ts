@@ -105,6 +105,8 @@ export class KimiStudyRuntime implements StudyRuntimePort {
   private readonly workspaceRoot: string;
   private readonly now: () => string;
   private readonly inFlight = new Map<string, Promise<unknown>>();
+  /** undefined = not probed yet; null = no usable default model. */
+  private defaultModel: string | null | undefined;
 
   constructor(
     private readonly api: KimiWebApi,
@@ -483,6 +485,7 @@ export class KimiStudyRuntime implements StudyRuntimePort {
     const sessions = await this.api.listSessions({ pageSize: 100, includeArchive: true });
     const recovered = sessions.items.find((session) => session.cwd === workspacePath);
     if (recovered !== undefined) {
+      await this.ensureSessionModel(recovered.id);
       const binding = this.newBinding(snapshot, workspacePath, recovered.id, uploadedMaterial);
       this.registry.saveCourse(binding);
       return binding;
@@ -503,9 +506,33 @@ export class KimiStudyRuntime implements StudyRuntimePort {
       title: snapshot.source.title,
       cwd: workspacePath,
     });
+    await this.ensureSessionModel(session.id);
     const binding = this.newBinding(snapshot, workspacePath, session.id, uploadedMaterial);
     this.registry.saveCourse(binding);
     return binding;
+  }
+
+  /**
+   * Daemon quirk: sessions created without an explicit model keep
+   * `agent_config.model = ''`, and a turn submitted to such a session dies
+   * silently (no assistant message, no error). Pin the server's configured
+   * default model through the profile RPC so course turns actually run.
+   * The product never exposes model selection — this uses the server default.
+   */
+  private async ensureSessionModel(sessionId: string): Promise<void> {
+    if (this.defaultModel === undefined) {
+      try {
+        const auth = await this.api.getAuth();
+        this.defaultModel = auth.ready && typeof auth.defaultModel === 'string'
+          && auth.defaultModel.length > 0
+          ? auth.defaultModel
+          : null;
+      } catch {
+        this.defaultModel = null;
+      }
+    }
+    if (this.defaultModel === null) return;
+    await this.api.updateSession(sessionId, { model: this.defaultModel });
   }
 
   private async ensureLauncherSession(): Promise<string> {
